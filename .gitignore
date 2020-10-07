@@ -1,0 +1,7 @@
+# Ignore object files
+*.o
+
+# Ignore static and shared libraries
+*.a
+*.so
+*.so.*
