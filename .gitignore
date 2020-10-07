@@ -5,3 +5,6 @@
 *.a
 *.so
 *.so.*
+
+# Ignore clang-format files
+.clang-format
