@@ -1,11 +1,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+union number_view {
+    long number;
+    unsigned char memory[sizeof(long)];
+};
+
 int main(void)
 {
     long input = 0;
 
-    for (;;) {
+    while (1) {
         int return_val = scanf("%ld", &input);
 
         if (return_val == EOF) {
@@ -15,16 +20,18 @@ int main(void)
 
         if (return_val != 1) {
             fprintf(stderr, "Wrong args bruh\n");
-            return 1;
+            return EXIT_FAILURE;
         }
 
-        for (size_t i = 0; i < 8; i++) {
+        // unsigned char *memory = (unsigned char *) &n; //maybe unsigned wouldn't work
+        // for (unsigned char *byte = memory; byte - memory < sizeof(long); memory++)
+        for (size_t i = 0; i < sizeof(long); i++) {
             printf("%02lx ", input);
-            input >>= 8;
+            input >>= 8; //this is slow
         }
 
         putchar('\n');
     }
 
-    return 0;
+    return EXIT_SUCCESS;
 }
