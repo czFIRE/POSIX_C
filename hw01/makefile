@@ -19,7 +19,7 @@ $(TARGET): crc.o get_crc.o
 crc.o: crc.h
 crc32check.o: crc.h get_crc.h
 crc32sum.o: crc.h get_crc.h
-get_crc.o: constants.h get_crc.h
+get_crc.o: constants.h get_crc.h crc.h
 
 clean:
 	-$(RM) $(OBJS)
