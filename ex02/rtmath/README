@@ -1,0 +1,41 @@
+RTMATH - ukázka run-time načtení dynamické knihovny a symbolu
+
+Při překladu vzniknou dvě verze programu, rtmath32 (32bit) a rtmath64 (64bit)
+kvůli různým verzím knihoven v systému. Správnou knihovnu naleznete příkazem
+
+    locate libm.so
+
+např. na Aise:
+
+    $ locate libm.so
+    /usr/lib/libm.so
+    /usr/lib/libm.so.6
+    /usr/lib/debug/usr/lib/libm.so.6.debug
+    /usr/lib/debug/usr/lib/libm.so.debug
+    /usr/lib/debug/usr/lib/i686/nosegneg/libm.so.6.debug
+    /usr/lib/debug/usr/lib64/libm.so.6.debug
+    /usr/lib/debug/usr/lib64/libm.so.debug
+    /usr/lib/i686/nosegneg/libm.so.6
+    /usr/lib64/libm.so
+    /usr/lib64/libm.so.6
+    /usr/share/ltrace/libm.so.conf
+
+32bit verze programu bude fungovat pouze s 32bit verzí knihovny a analogicky
+se chovají 64bit verze.
+
+Programy očekávají 2 argumenty, cestu ke knihovně a (nepovinně) symbol,
+který se má načítat. Pak čekají na reálné číslo, pro které vypočítají hodnotu
+funkce s názvem v druhém argumentu. Pokud není zadán, počítá se log10.
+
+Vyzkoušejte
+
+    $ ./rtmath64 /usr/lib/libm.so.6
+    log10> 1000
+    log10(100.000000) = 2.000000
+
+    $ ./rtmath64 /usr/lib/libm.so.6 cos
+    cos> 3.14159265
+    cos(3.141593) = -1.000000
+
+    $ ./rtmath64 /usr/lib/libm.so.6 covfefe
+    rtmath64: dlsym: /usr/lib/libm.so.6: undefined symbol: covfefe
