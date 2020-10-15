@@ -1,5 +1,4 @@
-#pozor, z nazvu knihoven se odebira lib
-CFLAGS = -std=c99
+CFLAGS = -std=c99 -g
 
 all: lib bin
 
