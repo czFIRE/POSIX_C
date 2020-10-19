@@ -4,6 +4,8 @@
 #include <stdlib.h>
 #include <time.h>
 
+#define UNUSED(...) (void)(__VA_ARGS__)
+
 struct guess {
     long min;
     long max;
@@ -43,12 +45,13 @@ long guess(void *self)
 
 void notify(void *self, int sign)
 {
+    UNUSED(sign);
     struct guess *lib = (struct guess *)self;
 
     // earlier form of shutting down, shouldn't be needed, but time is tricky
     if (lib->tries > 0) {
-        fprintf(stderr, "Oracle needs to take a time off, his inner eye is sore. Try again later.\n");
-        exit(EXIT_FAILURE);
+        fprintf(stderr, "Oracle needs to take a time off, his inner eye is "
+                        "sore. Try again later.\n");
     }
 
     lib->tries++;

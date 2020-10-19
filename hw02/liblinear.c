@@ -3,6 +3,8 @@
 #include <stdbool.h>
 #include <stdlib.h>
 
+#define UNUSED(...) (void)(__VA_ARGS__)
+
 struct guess {
     long min;
     long max;
@@ -42,6 +44,8 @@ long guess(void *self)
 
 void notify(void *self, int sign)
 {
+    UNUSED(sign);
+
     struct guess *lib = (struct guess *)self;
 
     lib->state = !(lib->state);
