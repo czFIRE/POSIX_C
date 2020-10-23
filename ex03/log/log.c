@@ -88,14 +88,22 @@ int main(int argc, char *argv[], char *env[])
 int get_log_level(char *level)
 {
     int result = -1;
-    if (strcmp(level, "LOG_EMERG") == 0) result = LOG_EMERG;
-    if (strcmp(level, "LOG_ALERT") == 0) result = LOG_ALERT;
-    if (strcmp(level, "LOG_CRIT") == 0) result = LOG_CRIT;
-    if (strcmp(level, "LOG_ERR") == 0) result = LOG_ERR;
-    if (strcmp(level, "LOG_WARNING") == 0) result = LOG_WARNING;
-    if (strcmp(level, "LOG_NOTICE") == 0) result = LOG_NOTICE;
-    if (strcmp(level, "LOG_INFO") == 0) result = LOG_INFO;
-    if (strcmp(level, "LOG_DEBUG") == 0) result = LOG_DEBUG;
+    if (strcmp(level, "LOG_EMERG") == 0)
+        result = LOG_EMERG;
+    if (strcmp(level, "LOG_ALERT") == 0)
+        result = LOG_ALERT;
+    if (strcmp(level, "LOG_CRIT") == 0)
+        result = LOG_CRIT;
+    if (strcmp(level, "LOG_ERR") == 0)
+        result = LOG_ERR;
+    if (strcmp(level, "LOG_WARNING") == 0)
+        result = LOG_WARNING;
+    if (strcmp(level, "LOG_NOTICE") == 0)
+        result = LOG_NOTICE;
+    if (strcmp(level, "LOG_INFO") == 0)
+        result = LOG_INFO;
+    if (strcmp(level, "LOG_DEBUG") == 0)
+        result = LOG_DEBUG;
 
     return result;
 }
