@@ -13,28 +13,30 @@ int main(int argc, char *argv[])
         return EXIT_FAILURE;
     }
 
-    struct strategy_impl **functions =
-        calloc(argc - 1, sizeof(struct strategy_impl *));
-    if (!functions) {
+    struct guess_game resources = {0};
+    resources.length = argc - 1;
+
+    resources.functions = calloc(argc - 1, sizeof(struct strategy_impl *));
+    if (!resources.functions) {
         fprintf(stderr, "Functions malloc failed!");
         return EXIT_FAILURE;
     }
 
-    void **handles = calloc(argc - 1, sizeof(void *));
-    if (!handles) {
-        free(functions);
+    resources.handles = calloc(argc - 1, sizeof(void *));
+    if (!resources.handles) {
         fprintf(stderr, "Handles malloc failed!");
+        cleanup(&resources);
         return EXIT_FAILURE;
     }
 
-    if (init_libraries(functions, handles, argc, argv) != SUCCESS) {
+    if (init_libraries(argc, argv, &resources) != SUCCESS) {
         return EXIT_FAILURE;
     }
 
-    void **strategies = calloc(argc - 1, sizeof(void *));
-    if (!strategies) {
-        cleanup(functions, handles, NULL, argc - 1);
+    resources.strategies = calloc(argc - 1, sizeof(void *));
+    if (!resources.strategies) {
         fprintf(stderr, "Strategies malloc failed!");
+        cleanup(&resources);
         return EXIT_FAILURE;
     }
 
@@ -43,19 +45,19 @@ int main(int argc, char *argv[])
     int min = 0, max = 100;
 
     for (int i = 0; i < argc - 1; i++) {
-        strategies[i] = functions[i]->init(min, max);
-        if (strategies[i] == NULL) {
+        resources.strategies[i] = resources.functions[i]->init(min, max);
+        if (resources.strategies[i] == NULL) {
             fprintf(stderr, "Malloc in library init failed!");
-            cleanup(functions, handles, strategies, argc - 1);
+            cleanup(&resources);
             return EXIT_FAILURE;
         }
     }
 
     srand(time(NULL));
-    size_t game_length = gameloop(min, max, argc - 1, functions, strategies);
+    size_t game_length = gameloop(min, max, &resources);
     printf("Guessing took %lu tries in total.\n", game_length);
 
-    cleanup(functions, handles, strategies, argc - 1);
+    cleanup(&resources);
 
     return EXIT_SUCCESS;
 }

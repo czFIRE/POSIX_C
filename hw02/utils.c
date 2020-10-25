@@ -3,8 +3,7 @@
 #include <dlfcn.h>
 #include <stdio.h>
 
-int init_libraries(struct strategy_impl *functions[], void *handles[],
-                   size_t argc, char *argv[])
+int init_libraries(size_t argc, char *argv[], struct guess_game *resources)
 {
     char string_mem[BUFFER_LENGTH] = "\0";
 
@@ -13,17 +12,17 @@ int init_libraries(struct strategy_impl *functions[], void *handles[],
         int error_code = sprintf(string_mem, "lib%s.so", argv[i]);
 
         if (error_code < 0 || error_code > BUFFER_LENGTH) {
-            cleanup(functions, handles, NULL, argc - 1);
             fprintf(stderr, "Such strategy doesn't exist: %s", argv[i]);
+            cleanup(resources);
             return FAILURE;
         }
 
-        handles[i - 1] = dlopen(string_mem, RTLD_LAZY);
-        void *handle = handles[i - 1];
+        resources->handles[i - 1] = dlopen(string_mem, RTLD_LAZY);
+        void *handle = resources->handles[i - 1];
 
         if (!handle) {
-            cleanup(functions, handles, NULL, argc - 1);
             fprintf(stderr, "%s\n", dlerror());
+            cleanup(resources);
             return FAILURE;
         }
 
@@ -33,8 +32,8 @@ int init_libraries(struct strategy_impl *functions[], void *handles[],
         struct strategy_impl *strategy = malloc(sizeof(struct strategy_impl));
 
         if (!strategy) {
-            cleanup(functions, handles, NULL, argc - 1);
             fprintf(stderr, "Malloc failed");
+            cleanup(resources);
             return FAILURE;
         }
 
@@ -45,47 +44,45 @@ int init_libraries(struct strategy_impl *functions[], void *handles[],
 
         char *error;
         if ((error = dlerror()) != NULL) {
-            cleanup(functions, handles, NULL, argc - 1);
             fprintf(stderr, "%s\n", error);
+            cleanup(resources);
             return FAILURE;
         }
 
-        functions[i - 1] = strategy;
+        resources->functions[i - 1] = strategy;
     }
 
     return SUCCESS;
 }
 
-void cleanup(struct strategy_impl *functions[], void *handles[],
-             void *strategies[], size_t length)
+void cleanup(struct guess_game *resources)
 {
-    if (functions) {
-        if (strategies) {
-            for (size_t i = 0; i < length; i++) {
-                functions[i]->destroy(strategies[i]);
+    if (resources->functions) {
+        if (resources->strategies) {
+            for (size_t i = 0; i < resources->length; i++) {
+                resources->functions[i]->destroy(resources->strategies[i]);
             }
-            free(strategies);
+            free(resources->strategies);
         }
 
-        for (size_t i = 0; i < length; i++) {
-            free(functions[i]);
+        for (size_t i = 0; i < resources->length; i++) {
+            free(resources->functions[i]);
         }
-        free(functions);
+        free(resources->functions);
     }
 
-    if (handles) {
-        for (size_t i = 0; i < length; i++) {
-            if (!handles[i]) {
+    if (resources->handles) {
+        for (size_t i = 0; i < resources->length; i++) {
+            if (!resources->handles[i]) {
                 break;
             }
-            dlclose(handles[i]);
+            dlclose(resources->handles[i]);
         }
-        free(handles);
+        free(resources->handles);
     }
 }
 
-int gameloop(int min, int max, size_t length, struct strategy_impl *functions[],
-             void *strategies[])
+int gameloop(int min, int max, struct guess_game *resources)
 {
     int number_to_guess = rand() % (max - min) + min;
     printf("Number to guess is: %d\n\n", number_to_guess);
@@ -93,15 +90,17 @@ int gameloop(int min, int max, size_t length, struct strategy_impl *functions[],
     int current_guess = 0, rotating_counter = 0;
 
     do {
-        int index = rotating_counter % length;
+        int index = rotating_counter % resources->length;
 
-        current_guess = functions[index]->guess(strategies[index]);
+        current_guess =
+            resources->functions[index]->guess(resources->strategies[index]);
 
         printf("Current guess is: %d\n", current_guess);
 
         if (current_guess != number_to_guess) {
-            functions[index]->notify(strategies[index],
-                                     current_guess < number_to_guess ? 1 : -1);
+            resources->functions[index]->notify(
+                resources->strategies[index],
+                current_guess < number_to_guess ? 1 : -1);
         } else {
             printf("\nCorrect! ");
         }
