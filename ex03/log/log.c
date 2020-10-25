@@ -107,3 +107,26 @@ int get_log_level(char *level)
 
     return result;
 }
+
+/*
+struct syslog_priority
+{
+	const char *name;
+	int priority;
+}
+
+struct syslog_priority syslog_map[] = {
+	{"EMERG", 	LOG_EMERG}
+	{ 0 }
+}
+
+int parse_priority(char *) {
+	for ...
+		if shoda
+			return LOG_VALUE
+
+	return -1;
+}
+
+Pokud potrebuji zjistit, kolik by mi neco zabralo ve stringu, tak mi staci pouzit snprintf(NULL, 0u, format, ...) a vrati mi, kolik pameti by pouzila
+*/
