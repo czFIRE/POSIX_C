@@ -2,14 +2,14 @@ SRCS = crc.c crc32check.c crc32sum.c get_crc.c
 OBJS = $(SRCS:.c=.o)
 TARGET = crc32sum crc32check
 
-#CFLAGS = -std=c99 -pedantic -Wall -Wextra
+override CFLAGS += -std=c99 -pedantic -Wall -Wextra
 
 ifneq ($(strip $(DEBUG)),)
-	CFLAGS += -g -ggdb3 -Og
+override CFLAGS += -g -ggdb3 -Og
 endif
 
 ifneq ($(strip $(OPTIMIZE)),)
-	CFLAGS += -O2
+override CFLAGS += -O2
 endif
 
 all: $(TARGET)
