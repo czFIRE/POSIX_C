@@ -51,6 +51,7 @@ void notify(void *self, int sign)
         lib->max = (min + max) / 2;
         break;
 
+    // shouldn't really happen
     default:
         fprintf(stderr, "Internal error: wrong parametr in notify()");
         exit(EXIT_FAILURE);

@@ -9,7 +9,7 @@
 struct guess {
     long min;
     long max;
-    unsigned char tries;
+    unsigned int tries;
 };
 
 void *init(long min, long max)
@@ -39,7 +39,9 @@ long guess(void *self)
     int max = lib->max;
     int min = lib->min;
 
-    srand(difftime(time(NULL), clock()));
+    if (lib->tries < 2) {
+        srand(time(NULL) - lib->tries);
+    }
     return (rand() % (max - min)) + min;
 }
 
@@ -47,12 +49,5 @@ void notify(void *self, int sign)
 {
     UNUSED(sign);
     struct guess *lib = (struct guess *)self;
-
-    // earlier form of shutting down, shouldn't be needed, but time is tricky
-    if (lib->tries > 0) {
-        fprintf(stderr, "Oracle needs to take a time off, his inner eye is "
-                        "sore. Try again later.\n");
-    }
-
     lib->tries++;
 }

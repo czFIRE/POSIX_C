@@ -12,10 +12,10 @@ int init_libraries(struct strategy_impl *functions[], void *handles[],
         // check for really large input strings, may overflow here
         int error_code = sprintf(string_mem, "lib%s.so", argv[i]);
 
-        if (error_code < 0 || error_code > 80) {
+        if (error_code < 0 || error_code > BUFFER_LENGTH) {
             cleanup(functions, handles, NULL, argc - 1);
             fprintf(stderr, "Such strategy doesn't exist: %s", argv[i]);
-            return EXIT_FAILURE;
+            return FAILURE;
         }
 
         handles[i - 1] = dlopen(string_mem, RTLD_LAZY);
@@ -24,7 +24,7 @@ int init_libraries(struct strategy_impl *functions[], void *handles[],
         if (!handle) {
             cleanup(functions, handles, NULL, argc - 1);
             fprintf(stderr, "%s\n", dlerror());
-            return EXIT_FAILURE;
+            return FAILURE;
         }
 
         // should clear errors form dl
@@ -35,7 +35,7 @@ int init_libraries(struct strategy_impl *functions[], void *handles[],
         if (!strategy) {
             cleanup(functions, handles, NULL, argc - 1);
             fprintf(stderr, "Malloc failed");
-            return EXIT_FAILURE;
+            return FAILURE;
         }
 
         *(void **)(&strategy->init) = dlsym(handle, "init");
@@ -47,13 +47,13 @@ int init_libraries(struct strategy_impl *functions[], void *handles[],
         if ((error = dlerror()) != NULL) {
             cleanup(functions, handles, NULL, argc - 1);
             fprintf(stderr, "%s\n", error);
-            return EXIT_FAILURE;
+            return FAILURE;
         }
 
         functions[i - 1] = strategy;
     }
 
-    return EXIT_SUCCESS;
+    return SUCCESS;
 }
 
 void cleanup(struct strategy_impl *functions[], void *handles[],
@@ -93,7 +93,7 @@ int gameloop(int min, int max, size_t length, struct strategy_impl *functions[],
     int current_guess = 0, rotating_counter = 0;
 
     do {
-        int index = rotating_counter % (length);
+        int index = rotating_counter % length;
 
         current_guess = functions[index]->guess(strategies[index]);
 
@@ -102,10 +102,16 @@ int gameloop(int min, int max, size_t length, struct strategy_impl *functions[],
         if (current_guess != number_to_guess) {
             functions[index]->notify(strategies[index],
                                      current_guess < number_to_guess ? 1 : -1);
+        } else {
+            printf("\nCorrect! ");
         }
 
         rotating_counter++;
     } while ((current_guess != number_to_guess) && rotating_counter < 100);
+
+    if (rotating_counter >= 100) {
+        printf("\nFailed! ");
+    }
 
     return rotating_counter;
 }

@@ -8,8 +8,6 @@
 
 int main(int argc, char *argv[])
 {
-    // srand(time(NULL));
-
     if (argc < 2) {
         fprintf(stderr, "no args supplied");
         return EXIT_FAILURE;
@@ -29,7 +27,7 @@ int main(int argc, char *argv[])
         return EXIT_FAILURE;
     }
 
-    if (init_libraries(functions, handles, argc, argv) == EXIT_FAILURE) {
+    if (init_libraries(functions, handles, argc, argv) != SUCCESS) {
         return EXIT_FAILURE;
     }
 
@@ -41,18 +39,21 @@ int main(int argc, char *argv[])
     }
 
     // hehe, you should parse args
-    // like for real, half point is half point
+    // like for real, half point is a half point
     int min = 0, max = 100;
 
     for (int i = 0; i < argc - 1; i++) {
         strategies[i] = functions[i]->init(min, max);
+        if (strategies[i] == NULL) {
+            fprintf(stderr, "Malloc in library init failed!");
+            cleanup(functions, handles, strategies, argc - 1);
+            return EXIT_FAILURE;
+        }
     }
 
-    srand(difftime(time(NULL), clock()));
-
+    srand(time(NULL));
     size_t game_length = gameloop(min, max, argc - 1, functions, strategies);
-
-    printf("Game took %lu tries combined.\n", game_length);
+    printf("Guessing took %lu tries in total.\n", game_length);
 
     cleanup(functions, handles, strategies, argc - 1);
 
