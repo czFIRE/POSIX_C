@@ -4,7 +4,6 @@
 #include <stddef.h>
 
 struct service_info {
-
 };
 
 struct real_functions {
@@ -13,7 +12,6 @@ struct real_functions {
     void *(*real_realloc)(void *, size_t);
     void (*real_free)(void *);
 };
-
 
 void *malloc(size_t size);
 void *calloc(size_t num, size_t size);

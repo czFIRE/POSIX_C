@@ -10,7 +10,8 @@ libmemgrind.o: libmemgrind.h #utils.h
 ##########################
 
 lib: CFLAGS += -fPIC
-lib: LDFLAGS += -Wl,-rpath,.
+lib: LDFLAGS += -Wl,-rpath,. $(origin)
+lib: LDLIBS += -ldl
 lib: libmemgrind.so
 
 libmemgrind.so: libmemgrind.o #utils.o
