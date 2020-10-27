@@ -8,3 +8,11 @@
 
 # Ignore clang-format files
 .clang-format
+.vscode
+
+# Ignore localisation files
+*.po
+*.mo
+
+# Ingnore configurations
+*.json
