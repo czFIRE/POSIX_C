@@ -1,72 +1,132 @@
-#define _GNU_SOURCE
-
 #include "libmemgrind.h"
+#include "utils.h"
 
-#include <dlfcn.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <syslog.h>
 
-// static volatile libc_guard = 0;
 static struct real_functions functions = {0};
+static struct memory_statistics statistics = {0};
+const int SERVICE_LENGTH = sizeof(struct service_info);
 
 __attribute__((constructor)) static void library_init(void)
 {
-    // printf("started loading");
-    functions.real_calloc = dlsym(RTLD_NEXT, "calloc");
-    functions.real_free = dlsym(RTLD_NEXT, "free");
-    functions.real_malloc = dlsym(RTLD_NEXT, "malloc");
-    functions.real_realloc = dlsym(RTLD_NEXT, "realloc");
-    if (!functions.real_calloc || !functions.real_free ||
-        !functions.real_malloc || !functions.real_realloc) {
-        // exit(7);
-        fprintf(stderr, "Error in dlsym: %s\n", dlerror());
-        exit(EXIT_FAILURE);
-    }
-    // printf("loaded functions\n");
-    // exit(8); //this still gets executed
+    fprintf(stderr, "started loading\n");
+    // openlog + maximum messages -> setlogmask()
+    read_real_functions(&functions);
 }
 
 __attribute__((destructor)) static void library_destroy(void)
 {
-    dlclose(functions.real_calloc);
-    dlclose(functions.real_free);
-    dlclose(functions.real_malloc);
-    dlclose(functions.real_realloc);
-    printf("freed functions\n");
+    fprintf(stderr, "cleanup\n");
+    fprintf(stderr, "\nCurrent: %lu\n\
+Total used: %lu\n\
+Total freed: %lu\n\
+Allocations: %lu\n\
+Deallocations: %lu\n\
+",
+            statistics.total_used - statistics.total_freed,
+            statistics.total_used, statistics.total_freed,
+            statistics.allocation_num, statistics.dealllocation_num);
+    // closelog
 }
 
 // my malloc
 void *malloc(size_t size)
 {
-    /*if (libc_guard)
-        return __libc_malloc(size);
+    fprintf(stderr, "calling malloc\n");
+    statistics.allocation_num++;
+    statistics.total_used = statistics.total_used + size;
 
-    libc_guard = 1;
+    void *memory = functions.real_malloc(size + SERVICE_LENGTH);
+    if (!memory) {
+        statistics.errors++;
+        return NULL;
+    }
+    initialise_service_block(memory, size);
 
-    //syslog
-
-    libc_guard = 0;*/
-    // printf("calling malloc\n");
-    return functions.real_malloc(size);
+    return memory + SERVICE_LENGTH;
 }
 
 // my calloc
 void *calloc(size_t num, size_t size)
 {
-    // printf("calling calloc\n");
-    return functions.real_calloc(num, size);
+    fprintf(stderr, "calling calloc\n");
+    statistics.allocation_num++;
+    statistics.total_used = statistics.total_used + (num * size);
+
+    void *memory = functions.real_calloc(num * size + SERVICE_LENGTH, 1);
+
+    if (!memory) {
+        statistics.errors++;
+        return NULL;
+    }
+    initialise_service_block(memory, num * size);
+
+    return memory + SERVICE_LENGTH;
 }
 
 // my realloc
 void *realloc(void *ptr, size_t size)
 {
-    // printf("calling realloc\n");
-    return functions.real_realloc(ptr, size);
+    //what if *ptr is NULL -> do smth about it
+    fprintf(stderr, "calling realloc\n");
+
+    if (ptr == NULL) {
+        return malloc(size);
+    }
+
+    ptr = ptr - SERVICE_LENGTH;
+
+    if (check_service_validity(ptr) != 0) {
+        fprintf(stderr, "service struct missing");
+        statistics.errors++;
+        return NULL;
+    }
+
+    size_t block_size = ((struct service_info *)ptr)->block_size;
+
+    struct service_info * memory = functions.real_realloc(ptr, size + SERVICE_LENGTH);
+    if (!memory) {
+        statistics.errors++;
+        return NULL;
+    }
+
+    if (ptr == memory) { //was able to extend / contract space used
+        fprintf(stderr, "are same\n");
+        if (size >= block_size) {
+            statistics.total_used += (size - block_size);
+        } else {
+            statistics.total_freed += (block_size - size);
+        }        
+    } else {
+        statistics.allocation_num++;
+        statistics.dealllocation_num++;
+        statistics.total_used += size;
+        statistics.total_freed += block_size;
+    }
+
+    memory->block_size = size;
+    return (void *) memory + SERVICE_LENGTH;
 }
 
 // my free
 void free(void *ptr)
 {
-    // printf("calling free\n");
-    return functions.real_free(ptr);
+    fprintf(stderr, "calling free\n");
+
+    if (ptr == NULL) {
+        return;
+    }
+
+    ptr = ptr - SERVICE_LENGTH;
+    if (check_service_validity(ptr) != 0) {
+        fprintf(stderr, "service struct missing");
+        statistics.errors++;
+        return;
+    }
+
+    statistics.dealllocation_num++;
+    statistics.total_freed += ((struct service_info *)ptr)->block_size;
+    functions.real_free(ptr);
 }

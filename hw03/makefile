@@ -4,8 +4,8 @@ all: lib bin
 
 ##########################
 
-libmemgrind.o: libmemgrind.h #utils.h
-#utils.o: utils.h
+libmemgrind.o: libmemgrind.h utils.h
+utils.o: utils.h
 
 ##########################
 
@@ -14,7 +14,7 @@ lib: LDFLAGS += -Wl,-rpath,. $(origin)
 lib: LDLIBS += -ldl
 lib: libmemgrind.so
 
-libmemgrind.so: libmemgrind.o #utils.o
+libmemgrind.so: libmemgrind.o utils.o
 	$(CC) $(LDFLAGS) -shared -o $@ $^ $(LDLIBS) $(LOADLIBES)
 
 ##########################

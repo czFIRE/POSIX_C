@@ -3,7 +3,7 @@
 
 int main(void)
 {
-    return 5; //this doesn't get executed
+    //_exit(42); //this doesn't get executed
     printf("started easy\n");
     int *vals = calloc(4, sizeof(int));
 
@@ -19,13 +19,22 @@ int main(void)
 
     if (!tmp) {
         printf("realloc failed\n");
-        free(tmp);
+        free(vals);
     }
 
-    *(vals + 6) = 10;
-    printf("%d\n", vals[6]);
+    vals = tmp;
+    *(vals + 5) = 10;
+    printf("%d\n", vals[5]);
+
+    void *tmp1 = realloc(vals, 6 * sizeof(int));
+
+    if (!tmp1) {
+        printf("realloc failed\n");
+        free(vals);
+    }
+
+    vals = tmp1;
 
     free(vals);
-
     return EXIT_SUCCESS;
 }
