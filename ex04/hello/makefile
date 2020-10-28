@@ -1,13 +1,15 @@
 CFLAGS += -std=c99 -pedantic -Wall
 
-all: log
+all: hello
 
-log: log.o
+hello: hello.o
+
+locales: 
 
 clean:
 	$(RM) *.o
 
 distclean: clean
-	$(RM) log
+	$(RM) hello
 
-.PHONY: all clean distclean
+.PHONY: all clean distclean locales

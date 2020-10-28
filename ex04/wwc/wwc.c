@@ -14,6 +14,11 @@ void close_files(FILE **files, size_t length);
 int main(int argc, char *argv[], char *env[])
 {
     // if I use files, then the program se
+    //printf("%s\n", setlocale(LC_ALL, ""));
+    //setlocale(LC_CTYPE, "");
+
+    printf("%s\n", setlocale(LC_CTYPE, NULL));
+    assert(setlocale(LC_CTYPE, "") != NULL);
     printf("%s\n", setlocale(LC_CTYPE, NULL));
 
     FILE **files = calloc(argc - 1, sizeof(FILE *));
@@ -49,15 +54,15 @@ int main(int argc, char *argv[], char *env[])
             size_t byte_size;
 
             mbrlen(NULL, 0, &mbs); // mbr
-            // mblen(NULL, 0);       //mb
+            mblen(NULL, 0);       //mb
 
             char *line_copy = line;
 
             while (line_len > 0) {
-                byte_size = mbrlen(line, line_len, &mbs); // mbr
+                byte_size = mbrlen(line_copy, line_len, &mbs); // mbr
                 // byte_size = mblen(line_copy, line_len);       //mb
 
-                printf("byte_size = %d\n", byte_size);
+                printf("byte_size = %ld\n", byte_size);
                 if (byte_size == 0 || byte_size > line_len) {
                     break;
                 }
