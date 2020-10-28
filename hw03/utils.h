@@ -6,6 +6,7 @@
 #include <stddef.h>
 
 #define CANNARY_WORD "ZDE" // int value of 4195828
+#define STATUS_INFO "current: %lu\ttotal: %lu\tfreed: %lu\tallocations: %lu\tdeallocations: %lu"
 
 struct memory_statistics {
     size_t total_used;
@@ -30,5 +31,6 @@ struct real_functions {
 void read_real_functions(struct real_functions *functions);
 void initialise_service_block(struct service_info * info, size_t bytes);
 int check_service_validity(struct service_info * info);
+void print_statistics(struct memory_statistics* statistics);
 
 #endif // UTILS_H

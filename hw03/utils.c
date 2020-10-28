@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <syslog.h>
 
 void read_real_functions(struct real_functions *functions)
 {
@@ -27,4 +28,12 @@ void initialise_service_block(struct service_info *info, size_t bytes)
 int check_service_validity(struct service_info *info)
 {
     return strcmp(info->check, CANNARY_WORD);
+}
+
+void print_statistics(struct memory_statistics* statistics)
+{
+    syslog(LOG_DEBUG, STATUS_INFO,
+           statistics->total_used - statistics->total_freed,
+           statistics->total_used, statistics->total_freed,
+           statistics->allocation_num, statistics->dealllocation_num);
 }
