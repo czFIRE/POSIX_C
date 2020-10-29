@@ -67,6 +67,10 @@ void initialise_from_env(struct enviroment_settings *settings)
     settings->memgrind_alloc_count = get_value("MEMGRIND_ALLOC_COUNT");
     settings->memgrind_alloc_max = get_value("MEMGRIND_ALLOC_MAX");
     settings->memgrind_mem_max = get_value("MEMGRIND_MEM_MAX");
+
+    syslog(LOG_INFO, "mem_max=%ld alloc_max=%ld alloc_count_max=%ld",
+           settings->memgrind_mem_max, settings->memgrind_alloc_max,
+           settings->memgrind_alloc_count);
 }
 
 size_t get_value(char *env_var_name)

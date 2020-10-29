@@ -10,7 +10,7 @@
     "current: %lu\ttotal: %lu\tfreed: %lu\tallocations: %lu\tdeallocations: "  \
     "%lu\terrors: %lu"
 #define NICER_STATUS_INFO                                                      \
-"Final statistics:\n\
+    "Final statistics:\n\
 Current:\t\t%lu\n\
 Total used:\t\t%lu\n\
 Total freed:\t\t%lu\n\
@@ -52,7 +52,6 @@ int check_service_validity(struct service_info *info);
 void print_statistics(struct memory_statistics *statistics);
 void initialise_from_env(struct enviroment_settings *settings);
 size_t get_value(char *env_var_name);
-
 void print_final(struct memory_statistics statistics);
 
 #endif // UTILS_H

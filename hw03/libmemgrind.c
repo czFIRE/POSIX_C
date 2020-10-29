@@ -1,6 +1,7 @@
 #include "libmemgrind.h"
 #include "utils.h"
 
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <syslog.h>
@@ -22,7 +23,8 @@ __attribute__((constructor)) static void library_init(void)
 __attribute__((destructor)) static void library_destroy(void)
 {
     fprintf(stderr, "cleanup\n");
-    libc_guard = 1; //maybe remove this if last allocs / frees from syslog are important
+    // maybe remove this if last allocs / frees from syslog are important
+    libc_guard = 1;
     print_final(statistics);
     closelog();
 }
@@ -31,12 +33,18 @@ __attribute__((destructor)) static void library_destroy(void)
 void *malloc(size_t size)
 {
     // fprintf(stderr, "malloc(%lu)\n", size);
+
     if (libc_guard) {
         return functions.real_malloc(size);
     }
     libc_guard = 1;
 
     syslog(LOG_INFO, "malloc(%lu)", size);
+
+    if (!can_alloc(size)) {
+        return NULL;
+    }
+
     statistics.allocation_num++;
     statistics.total_used = statistics.total_used + size;
 
@@ -64,6 +72,12 @@ void *calloc(size_t num, size_t size)
     libc_guard = 1;
 
     syslog(LOG_INFO, "calloc(%lu, %lu)", num, size);
+
+    // sadly
+    if (!can_alloc(size)) {
+        return NULL;
+    }
+
     statistics.allocation_num++;
     statistics.total_used = statistics.total_used + (num * size);
 
@@ -98,8 +112,11 @@ void *realloc(void *ptr, size_t size)
 
     syslog(LOG_INFO, "realloc(%p, %lu)", ptr, size);
 
-    ptr = ptr - SERVICE_LENGTH;
+    if (!can_alloc(size)) {
+        return NULL;
+    }
 
+    ptr = ptr - SERVICE_LENGTH;
     if (check_service_validity(ptr) != 0) {
         syslog(LOG_ERR, "service struct missing");
         statistics.errors++;
@@ -167,4 +184,31 @@ void free(void *ptr)
     print_statistics(&statistics);
     libc_guard = 0;
     functions.real_free(ptr);
+}
+
+bool can_alloc(size_t size)
+{
+    if (allocation_setting.memgrind_alloc_max < size) {
+        syslog(LOG_ERR, "Declined allocation of block of size %lu (max_size)",
+               size);
+        statistics.declined_allocations++;
+        return false;
+    }
+
+    if (allocation_setting.memgrind_mem_max < statistics.total_used + size) {
+        syslog(LOG_ERR, "Declined allocation of block of size %lu (total_size)",
+               size);
+        statistics.declined_allocations++;
+        return false;
+    }
+
+    if (allocation_setting.memgrind_alloc_count <
+        statistics.allocation_num + 1) {
+        syslog(LOG_ERR,
+               "Declined allocation of block of size %lu (alloc_count)", size);
+        statistics.declined_allocations++;
+        return false;
+    }
+
+    return true;
 }
