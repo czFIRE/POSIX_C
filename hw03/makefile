@@ -21,6 +21,7 @@ libmemgrind.so: libmemgrind.o utils.o syslog_parser.o
 ##########################
 
 bin: test_easy
+bin: test_realloc
 
 ##########################
 
@@ -28,6 +29,6 @@ clean:
 	$(RM) *.o *.a
 
 distclean: clean
-	$(RM) *.so test_easy
+	$(RM) *.so test_easy test_realloc
 
 .PHONY: all clean lib bin

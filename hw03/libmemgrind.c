@@ -5,48 +5,32 @@
 #include <stdlib.h>
 #include <syslog.h>
 
-static struct real_functions functions = {0};
-static struct memory_statistics statistics = {0};
+struct real_functions functions = {0};
+struct memory_statistics statistics = {0};
 const int SERVICE_LENGTH = sizeof(struct service_info);
-static struct enviroment_settings allocation_setting;
+struct enviroment_settings allocation_setting;
+static volatile int libc_guard = 1;
 
 __attribute__((constructor)) static void library_init(void)
 {
-    // openlog + maximum messages -> setlogmask()
-    // change this to just write to
-
-    // parse enviroment variables
-
-    // openlog("", LOG_PERROR, LOG_USER);
-    read_enviroment_settings(&allocation_setting);
     read_real_functions(&functions);
+    initialise_from_env(&allocation_setting);
     syslog(LOG_INFO, "library loaded succefully");
+    libc_guard = 0;
 }
 
 __attribute__((destructor)) static void library_destroy(void)
 {
     fprintf(stderr, "cleanup\n");
 
-    syslog(LOG_INFO, NICER_STATUS_INFO,
-           statistics.total_used - statistics.total_freed,
-           statistics.total_used, statistics.total_freed,
-           statistics.allocation_num, statistics.dealllocation_num);
-
-    if (statistics.allocation_num > statistics.dealllocation_num) {
-        syslog(LOG_WARNING, "Possible memory leak of size %lu in %lu blocks",
-               statistics.total_used - statistics.total_freed,
-               statistics.allocation_num - statistics.dealllocation_num);
-    }
-
+    print_final(statistics);
     closelog();
 }
-
-static volatile int libc_guard = 0;
 
 // my malloc
 void *malloc(size_t size)
 {
-    // fprintf(stderr, "calling malloc\n");
+    // fprintf(stderr, "malloc(%lu)\n", size);
     if (libc_guard) {
         return functions.real_malloc(size);
     }
@@ -60,6 +44,7 @@ void *malloc(size_t size)
     if (!memory) {
         statistics.errors++;
         syslog(LOG_ERR, "malloc failed");
+        libc_guard = 0;
         return NULL;
     }
     initialise_service_block(memory, size);
@@ -72,7 +57,7 @@ void *malloc(size_t size)
 // my calloc
 void *calloc(size_t num, size_t size)
 {
-    // fprintf(stderr, "calling calloc\n");
+    // fprintf(stderr, "calloc(%lu, %lu)\n", num, size);
     if (libc_guard) {
         return functions.real_calloc(num, size);
     }
@@ -87,6 +72,7 @@ void *calloc(size_t num, size_t size)
     if (!memory) {
         statistics.errors++;
         syslog(LOG_ERR, "calloc failed");
+        libc_guard = 0;
         return NULL;
     }
     initialise_service_block(memory, num * size);
@@ -99,8 +85,11 @@ void *calloc(size_t num, size_t size)
 // my realloc
 void *realloc(void *ptr, size_t size)
 {
-    // what if *ptr is NULL -> do smth about it
-    // fprintf(stderr, "calling realloc\n");
+    // fprintf(stderr, "realloc(%p, %lu)\n", ptr, size);
+
+    if (ptr == NULL) {
+        return malloc(size);
+    }
 
     if (libc_guard) {
         return functions.real_realloc(ptr, size);
@@ -108,25 +97,23 @@ void *realloc(void *ptr, size_t size)
     libc_guard = 1;
 
     syslog(LOG_INFO, "realloc(%p, %lu)", ptr, size);
-    if (ptr == NULL) {
-        return malloc(size);
-    }
 
     ptr = ptr - SERVICE_LENGTH;
 
     if (check_service_validity(ptr) != 0) {
         syslog(LOG_ERR, "service struct missing");
         statistics.errors++;
+        libc_guard = 0;
         return NULL;
     }
 
     size_t block_size = ((struct service_info *)ptr)->block_size;
 
-    struct service_info *memory =
-        functions.real_realloc(ptr, size + SERVICE_LENGTH);
+    void *memory = functions.real_realloc(ptr, size + SERVICE_LENGTH);
     if (!memory) {
         statistics.errors++;
         syslog(LOG_ERR, "realloc failed");
+        libc_guard = 0;
         return NULL;
     }
 
@@ -143,7 +130,7 @@ void *realloc(void *ptr, size_t size)
         statistics.total_freed += block_size;
     }
 
-    memory->block_size = size;
+    ((struct service_info *)memory)->block_size = size;
 
     print_statistics(&statistics);
     libc_guard = 0;
@@ -153,7 +140,7 @@ void *realloc(void *ptr, size_t size)
 // my free
 void free(void *ptr)
 {
-    // fprintf(stderr, "calling free\n");
+    // fprintf(stderr, "free(%p)\n", ptr);
 
     if (libc_guard) {
         return functions.real_free(ptr);
@@ -162,6 +149,7 @@ void free(void *ptr)
 
     syslog(LOG_INFO, "free(%p)", ptr);
     if (ptr == NULL) {
+        libc_guard = 0;
         return;
     }
 
@@ -169,6 +157,7 @@ void free(void *ptr)
     if (check_service_validity(ptr) != 0) {
         syslog(LOG_ERR, "service struct missing");
         statistics.errors++;
+        libc_guard = 0;
         return;
     }
 

@@ -26,7 +26,7 @@ int main(void)
     *(vals + 5) = 10;
     printf("%d\n", vals[5]);
 
-    void *tmp1 = realloc(vals, 6 * sizeof(int));
+    void *tmp1 = realloc(vals, 2048 * sizeof(int));
 
     if (!tmp1) {
         printf("realloc failed\n");
@@ -36,5 +36,6 @@ int main(void)
     vals = tmp1;
 
     free(vals);
+    printf("free vals\n");
     return EXIT_SUCCESS;
 }

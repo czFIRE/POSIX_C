@@ -47,7 +47,9 @@ void read_real_functions(struct real_functions *functions);
 void initialise_service_block(struct service_info *info, size_t bytes);
 int check_service_validity(struct service_info *info);
 void print_statistics(struct memory_statistics *statistics);
-void read_enviroment_settings(struct enviroment_settings *settings);
+void initialise_from_env(struct enviroment_settings *settings);
 size_t get_value(char *env_var_name);
+
+void print_final(struct memory_statistics statistics);
 
 #endif // UTILS_H
