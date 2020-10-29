@@ -5,19 +5,20 @@
 #include <stdlib.h>
 #include <syslog.h>
 
-static volatile int libc_guard = 0;
 static struct real_functions functions = {0};
 static struct memory_statistics statistics = {0};
 const int SERVICE_LENGTH = sizeof(struct service_info);
+static struct enviroment_settings allocation_setting;
 
 __attribute__((constructor)) static void library_init(void)
 {
-    fprintf(stderr, "started loading\n");
     // openlog + maximum messages -> setlogmask()
     // change this to just write to
 
     // parse enviroment variables
-    openlog("", LOG_PERROR, LOG_USER);
+
+    // openlog("", LOG_PERROR, LOG_USER);
+    read_enviroment_settings(&allocation_setting);
     read_real_functions(&functions);
     syslog(LOG_INFO, "library loaded succefully");
 }
@@ -25,17 +26,22 @@ __attribute__((constructor)) static void library_init(void)
 __attribute__((destructor)) static void library_destroy(void)
 {
     fprintf(stderr, "cleanup\n");
-    fprintf(stderr, "\nCurrent: %lu\n\
-Total used: %lu\n\
-Total freed: %lu\n\
-Allocations: %lu\n\
-Deallocations: %lu\n\
-",
-            statistics.total_used - statistics.total_freed,
-            statistics.total_used, statistics.total_freed,
-            statistics.allocation_num, statistics.dealllocation_num);
+
+    syslog(LOG_INFO, NICER_STATUS_INFO,
+           statistics.total_used - statistics.total_freed,
+           statistics.total_used, statistics.total_freed,
+           statistics.allocation_num, statistics.dealllocation_num);
+
+    if (statistics.allocation_num > statistics.dealllocation_num) {
+        syslog(LOG_WARNING, "Possible memory leak of size %lu in %lu blocks",
+               statistics.total_used - statistics.total_freed,
+               statistics.allocation_num - statistics.dealllocation_num);
+    }
+
     closelog();
 }
+
+static volatile int libc_guard = 0;
 
 // my malloc
 void *malloc(size_t size)
@@ -173,4 +179,3 @@ void free(void *ptr)
     libc_guard = 0;
     functions.real_free(ptr);
 }
-
