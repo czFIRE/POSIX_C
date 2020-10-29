@@ -22,7 +22,7 @@ __attribute__((constructor)) static void library_init(void)
 __attribute__((destructor)) static void library_destroy(void)
 {
     fprintf(stderr, "cleanup\n");
-
+    libc_guard = 1; //maybe remove this if last allocs / frees from syslog are important
     print_final(statistics);
     closelog();
 }

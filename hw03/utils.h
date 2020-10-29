@@ -8,14 +8,16 @@
 #define CANNARY_WORD "ZDE" // int value of 4195828
 #define STATUS_INFO                                                            \
     "current: %lu\ttotal: %lu\tfreed: %lu\tallocations: %lu\tdeallocations: "  \
-    "%lu"
+    "%lu\terrors: %lu"
 #define NICER_STATUS_INFO                                                      \
-    "Final statistics:\n\
-Current:\t%lu\n\
-Total used:\t%lu\n\
-Total freed:\t%lu\n\
-Allocations:\t%lu\n\
-Deallocations:\t%lu\n"
+"Final statistics:\n\
+Current:\t\t%lu\n\
+Total used:\t\t%lu\n\
+Total freed:\t\t%lu\n\
+Allocations:\t\t%lu\n\
+Deallocations:\t\t%lu\n\
+Errors:\t\t\t%lu\n\
+Declined allocs:\t%lu"
 
 struct memory_statistics {
     size_t total_used;
@@ -23,6 +25,7 @@ struct memory_statistics {
     size_t allocation_num;
     size_t dealllocation_num;
     size_t errors;
+    size_t declined_allocations;
 };
 
 struct service_info {

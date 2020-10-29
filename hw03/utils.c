@@ -36,7 +36,8 @@ void print_statistics(struct memory_statistics *statistics)
     syslog(LOG_DEBUG, STATUS_INFO,
            statistics->total_used - statistics->total_freed,
            statistics->total_used, statistics->total_freed,
-           statistics->allocation_num, statistics->dealllocation_num);
+           statistics->allocation_num, statistics->dealllocation_num,
+           statistics->errors);
 }
 
 void initialise_from_env(struct enviroment_settings *settings)
@@ -96,7 +97,8 @@ void print_final(struct memory_statistics statistics)
     syslog(LOG_INFO, NICER_STATUS_INFO,
            statistics.total_used - statistics.total_freed,
            statistics.total_used, statistics.total_freed,
-           statistics.allocation_num, statistics.dealllocation_num);
+           statistics.allocation_num, statistics.dealllocation_num,
+           statistics.errors, statistics.declined_allocations);
 
     if (statistics.allocation_num > statistics.dealllocation_num) {
         syslog(LOG_WARNING, "Possible memory leak of size %lu in %lu blocks",
