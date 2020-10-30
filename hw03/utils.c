@@ -56,7 +56,6 @@ void initialise_from_env(struct enviroment_settings *settings)
     if (env_var != NULL) {
         memgrind_log_level = parse_log_value(env_var);
         if (memgrind_log_level == -1) {
-            // fprintf(stderr, "MEMGRIND_LOG_LEVEL='%s' is invalid\n", env_var);
             syslog(LOG_ERR, "MEMGRIND_LOG_LEVEL='%s' is invalid\n", env_var);
             _Exit(EXIT_FAILURE);
         }

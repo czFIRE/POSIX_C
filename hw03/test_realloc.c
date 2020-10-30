@@ -17,7 +17,7 @@ int main(void)
 
     if (!tmp) {
         printf("realloc huge failed: %p\n", my_ptr);
-        free(my_ptr); //this somehow shifted in a weird way
+        free(my_ptr); // this somehow shifted in a weird way
         return EXIT_FAILURE;
     }
 
