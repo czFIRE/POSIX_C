@@ -10,33 +10,31 @@ int main(void)
     }
 
     *my_ptr = 5;
-    printf("%p\n", my_ptr);
+    printf("after first alloc: %p\n", my_ptr);
 
     int *tmp = realloc(my_ptr, 4096 * sizeof(int));
     printf("%p\n", tmp);
 
     if (!tmp) {
-        printf("realloc huge failed\n");
-        printf("%p\n", my_ptr);
-        free(my_ptr);
+        printf("realloc huge failed: %p\n", my_ptr);
+        free(my_ptr); //this somehow shifted in a weird way
         return EXIT_FAILURE;
     }
 
     my_ptr = tmp;
 
     int *tmp1 = realloc(my_ptr, 1);
-    printf("%p\n", tmp);
+    printf("After shrink: %p\n", tmp);
 
     if (!tmp1) {
-        printf("realloc shrink failed\n");
-        printf("%p\n", my_ptr);
+        printf("realloc shrink failed: %p\n", my_ptr);
         free(my_ptr);
         return EXIT_FAILURE;
     }
 
     my_ptr = tmp1;
 
-    printf("%p\n", my_ptr);
+    printf("Before last: %p\n", my_ptr);
     free(my_ptr);
     return EXIT_SUCCESS;
 }

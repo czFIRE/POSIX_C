@@ -9,8 +9,13 @@
 struct real_functions functions = {0};
 struct memory_statistics statistics = {0};
 const int SERVICE_LENGTH = sizeof(struct service_info);
-struct enviroment_settings allocation_setting;
+struct enviroment_settings allocation_setting = {0};
 static volatile int libc_guard = 1;
+
+bool can_alloc(size_t size);
+void * user_to_lib(char *ptr);
+void * lib_to_user(char *ptr);
+void * return_from_guarded(void * ptr);
 
 __attribute__((constructor)) static void library_init(void)
 {
@@ -32,17 +37,19 @@ __attribute__((destructor)) static void library_destroy(void)
 // my malloc
 void *malloc(size_t size)
 {
-    // fprintf(stderr, "malloc(%lu)\n", size);
+    //fprintf(stderr, "malloc(%lu)\n", size);
 
     if (libc_guard) {
         return functions.real_malloc(size);
     }
+
     libc_guard = 1;
+    syslog(LOG_DEBUG, "Entering guarded space");
 
     syslog(LOG_INFO, "malloc(%lu)", size);
 
     if (!can_alloc(size)) {
-        return NULL;
+        return return_from_guarded(NULL);
     }
 
     statistics.allocation_num++;
@@ -52,30 +59,28 @@ void *malloc(size_t size)
     if (!memory) {
         statistics.errors++;
         syslog(LOG_ERR, "malloc failed");
-        libc_guard = 0;
-        return NULL;
+        return return_from_guarded(NULL);
     }
     initialise_service_block(memory, size);
 
     print_statistics(&statistics);
-    libc_guard = 0;
-    return memory + SERVICE_LENGTH;
+    return return_from_guarded(lib_to_user(memory));
 }
 
 // my calloc
 void *calloc(size_t num, size_t size)
 {
-    // fprintf(stderr, "calloc(%lu, %lu)\n", num, size);
+    //fprintf(stderr, "calloc(%lu, %lu)\n", num, size);
     if (libc_guard) {
         return functions.real_calloc(num, size);
     }
     libc_guard = 1;
+    syslog(LOG_DEBUG, "Entering guarded space");
 
     syslog(LOG_INFO, "calloc(%lu, %lu)", num, size);
 
-    // sadly
     if (!can_alloc(size)) {
-        return NULL;
+        return return_from_guarded(NULL);
     }
 
     statistics.allocation_num++;
@@ -86,20 +91,18 @@ void *calloc(size_t num, size_t size)
     if (!memory) {
         statistics.errors++;
         syslog(LOG_ERR, "calloc failed");
-        libc_guard = 0;
-        return NULL;
+        return return_from_guarded(NULL);
     }
     initialise_service_block(memory, num * size);
 
     print_statistics(&statistics);
-    libc_guard = 0;
-    return memory + SERVICE_LENGTH;
+    return return_from_guarded(lib_to_user(memory));
 }
 
 // my realloc
 void *realloc(void *ptr, size_t size)
 {
-    // fprintf(stderr, "realloc(%p, %lu)\n", ptr, size);
+    //fprintf(stderr, "realloc(%p, %lu)\n", ptr, size);
 
     if (ptr == NULL) {
         return malloc(size);
@@ -109,19 +112,19 @@ void *realloc(void *ptr, size_t size)
         return functions.real_realloc(ptr, size);
     }
     libc_guard = 1;
+    syslog(LOG_DEBUG, "Entering guarded space");
 
     syslog(LOG_INFO, "realloc(%p, %lu)", ptr, size);
 
     if (!can_alloc(size)) {
-        return NULL;
+        return return_from_guarded(NULL);
     }
 
-    ptr = ptr - SERVICE_LENGTH;
+    ptr = user_to_lib(ptr);
     if (check_service_validity(ptr) != 0) {
         syslog(LOG_ERR, "service struct missing");
         statistics.errors++;
-        libc_guard = 0;
-        return NULL;
+        return return_from_guarded(NULL);
     }
 
     size_t block_size = ((struct service_info *)ptr)->block_size;
@@ -130,8 +133,7 @@ void *realloc(void *ptr, size_t size)
     if (!memory) {
         statistics.errors++;
         syslog(LOG_ERR, "realloc failed");
-        libc_guard = 0;
-        return NULL;
+        return return_from_guarded(NULL);
     }
 
     if (ptr == memory) { // was able to extend / contract space used
@@ -150,19 +152,20 @@ void *realloc(void *ptr, size_t size)
     ((struct service_info *)memory)->block_size = size;
 
     print_statistics(&statistics);
-    libc_guard = 0;
-    return (void *)memory + SERVICE_LENGTH;
+    return return_from_guarded(lib_to_user(memory));
 }
 
 // my free
 void free(void *ptr)
 {
-    // fprintf(stderr, "free(%p)\n", ptr);
+    //fprintf(stderr, "free(%p), guard: %d\n", ptr, libc_guard);
 
     if (libc_guard) {
-        return functions.real_free(ptr);
+        functions.real_free(ptr);
+        return;
     }
     libc_guard = 1;
+    syslog(LOG_DEBUG, "Entering guarded space");
 
     syslog(LOG_INFO, "free(%p)", ptr);
     if (ptr == NULL) {
@@ -170,7 +173,7 @@ void free(void *ptr)
         return;
     }
 
-    ptr = ptr - SERVICE_LENGTH;
+    ptr = user_to_lib(ptr);
     if (check_service_validity(ptr) != 0) {
         syslog(LOG_ERR, "service struct missing");
         statistics.errors++;
@@ -211,4 +214,20 @@ bool can_alloc(size_t size)
     }
 
     return true;
+}
+
+void * user_to_lib(char *ptr) {
+    //fprintf(stderr, "\t\t\treceived from user:%p\t\n", ptr);
+    return (ptr - SERVICE_LENGTH);
+}
+
+void * lib_to_user(char *ptr) {
+    //fprintf(stderr, "\t\t\treturned to user:%p\t\n", ptr);
+    return (ptr + SERVICE_LENGTH);
+}
+
+void * return_from_guarded(void * ptr) {
+    syslog(LOG_DEBUG, "Leaving guarded space");
+    libc_guard = 0;
+    return ptr;
 }
