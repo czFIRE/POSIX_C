@@ -6,7 +6,7 @@ override CFLAGS += -std=c99 -Wall -Wextra -g
 
 all: $(TARGET)
 
-#$(TARGET): 
+$(TARGET): $(OBJS)
 
 clean:
 	-$(RM) $(OBJS)

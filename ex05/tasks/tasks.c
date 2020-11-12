@@ -63,7 +63,13 @@ int main(int argc, char *argv[])
                 *loc = 0;
             }
 
+            // can fail here, check it
             execv(argv[optind], (argv + optind + 1));
+            // always make sure, that there is NULL pointer at the end
+            // allocate new array for this 
+
+            // exec skončí až při chybě :O
+            // takže uvolňuj vždy před tím
             return EXIT_SUCCESS;
         }
     }
@@ -78,6 +84,9 @@ int main(int argc, char *argv[])
         }
     }
 
+    if (read_from != stdin) {
+    	fclose(read_from);
+    }
     free(line);
     free_memory();
 

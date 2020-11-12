@@ -6,9 +6,9 @@ override CFLAGS += -std=c99 -Wall -Wextra -g
 
 all: $(TARGET)
 
-$(TARGET): dynarray.o
+$(TARGET): dynarray.o tasks.o
 
-$(SRCS): dynarray.h
+$(OBJS): dynarray.h
 
 clean:
 	-$(RM) $(OBJS)

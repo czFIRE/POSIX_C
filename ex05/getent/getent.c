@@ -91,6 +91,8 @@ void print_groups(bool highlight)
     printf("Groups:");
     struct group *entry;
 
+    // getgroups :O -> tohle je pro suplementární skupiny procesu
+    // wtf was I even doing
     while ((entry = getgrent()) != NULL) {
         if (highlight && entry->gr_gid == rgid) {
             putchar('*');
@@ -100,3 +102,5 @@ void print_groups(bool highlight)
 
     putchar('\n');
 }
+
+//gegrouplist je všechno pro uživatele
