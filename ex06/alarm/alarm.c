@@ -21,7 +21,7 @@ int main(int argc, char *argv[])
     long seconds = strtol(argv[1], NULL, 10);
 
     alarm(seconds);
-    // This can fail and I know, that I should make a copy
+    // Check whether this has sucessfully started
     execv(argv[2], argv + 2);
 
     return EXIT_SUCCESS;

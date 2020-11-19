@@ -82,7 +82,8 @@ void server(void)
 
     struct sigaction usrsigget_handler = {
         .sa_sigaction = &usrsigget,
-        .sa_flags = SA_RESTART,
+        .sa_flags = SA_RESTART | SA_SIGINFO,
+        .sa_mask = sig_intset, //aby se mi blokovalo to druhé volání -> není tak nutné
     };
 
     if (sigaction(USRSIGGET, &usrsigget_handler, NULL) != 0)
@@ -101,7 +102,7 @@ void server(void)
     // not even this gets executed :thinking:
     while (1) {
         sigsuspend(&sig_oldset);
-
+        // sigwaitinfo je pro synchronní řešení
         // pause();
     }
 }
@@ -119,6 +120,8 @@ void add(pid_t PID, int number)
     printf("Calling get: PID = %d, number = %d\n", PID, number);
     union sigval num = {.sival_int = number};
     // num.sival_int = number;
-    if (sigqueue(PID, USRSIGADD, num) == -1)
-        error(EXIT_FAILURE, errno, "sigqueue");
+    if (sigqueue(PID, USRSIGADD, num) == -1)    // sigqueue má omezení pro ty nespolehlivé signály :O
+        error(EXIT_FAILURE, errno, "sigqueue"); // ne, nemá, fuf
 }
+
+//dodívej se na záznam a implementuj ten waiter
