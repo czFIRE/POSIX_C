@@ -2,8 +2,8 @@
 #include "utils.h"
 #include <stdbool.h>
 #include <stdio.h>
-#include <string.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include <getopt.h>
 #include <unistd.h>
@@ -72,10 +72,10 @@ int main(int argc, char *argv[])
     print_options(options);
 
     if (argc == optind) {
-        
+        get_process_info();
     } else {
         for (int i = optind; i < argc; ++i) {
-            printf("argv[%u] = \x1b[33m%s\x1b[0m\n", i, argv[i]);
+            get_user_info(argv[i]);
         }
     }
 

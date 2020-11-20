@@ -9,6 +9,7 @@
 # Ignore clang-format files
 .clang-format
 .vscode
+CMakeLists.txt
 
 # Ignore localisation files
 *.po
@@ -16,3 +17,5 @@
 
 # Ingnore configurations
 *.json
+
+build
