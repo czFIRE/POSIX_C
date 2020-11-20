@@ -50,14 +50,17 @@ void get_process_info(struct program_options options)
 
     // getpwuid(euid)
 
-    struct passwd *uinfo = getpwuid(euid);
+    struct passwd *uinfo = getpwuid(ruid);
     if (uinfo == NULL) {
-        fprintf(stderr, "getpwuid failed");
+        // this can fail and it is expected behaviour :O
+
+        // fprintf(stderr, "getpwuid failed\n");
         // this can be here because this will occur only with internal failure
-        exit(EXIT_FAILURE);
+        // exit(EXIT_FAILURE);
     }
 
-    struct name_id user_data = {euid, ruid, uinfo->pw_name};
+    struct name_id user_data = {
+        .real = ruid, .effective = euid, .name = uinfo ? uinfo->pw_name : NULL};
 
     struct id_data data_id = {0};
     data_id.user_data = &user_data;
@@ -66,22 +69,24 @@ void get_process_info(struct program_options options)
     // getresgid
 
     gid_t rgid, egid, sgid;
-    if (getresuid(&rgid, &egid, &sgid) == -1) {
+    if (getresgid(&rgid, &egid, &sgid) == -1) {
         error(EXIT_FAILURE, errno, "getresuid");
     }
 
     // get group name
     // getgrgid(egid)
 
-    struct group *ginfo = getgrgid(egid);
+    struct group *ginfo = getgrgid(rgid);
     if (ginfo == NULL) {
-        fprintf(stderr, "getgrgid failed");
+        // fprintf(stderr, "getgrgid failed\n");
         // this can be here because this will occur only with internal failure
-        exit(EXIT_FAILURE);
+        // exit(EXIT_FAILURE);
     }
 
-    struct name_id group_data = {egid, rgid, strdup(ginfo->gr_name)};
-    if (group_data.name == NULL) {
+    struct name_id group_data = {.real = rgid,
+                                 .effective = egid,
+                                 .name = ginfo ? strdup(ginfo->gr_name) : NULL};
+    if (ginfo != NULL && group_data.name == NULL) {
         fprintf(stderr, "group data malloc failed");
         exit(EXIT_FAILURE);
     }
@@ -106,6 +111,18 @@ void get_process_info(struct program_options options)
         error(EXIT_FAILURE, errno, "getgroups");
     }
 
+    bool found = false;
+    for (size_t i = 0; i < ngroups; i++) {
+        if (groups_ids[i] == egid) {
+            found = true;
+        }
+    }
+
+    if (!found) {
+        groups_ids[ngroups] = egid;
+        ngroups++;
+    }
+
     struct name_id *groups_data = calloc(ngroups + 1, sizeof(struct name_id));
     if (groups_data == NULL) {
         free(groups_ids);
@@ -120,15 +137,23 @@ void get_process_info(struct program_options options)
     for (size_t i = 0; i < ngroups; i++) {
         struct group *gsinfo = getgrgid(groups_ids[i]);
         if (gsinfo == NULL) {
-            free_memory(data_id, ngroups);
+            /*free_memory(data_id, ngroups);
             free(groups_ids);
             fprintf(stderr, "getgrgid failed");
             // this can be here because this will occur only with internal
             // failure
+            exit(EXIT_FAILURE);*/
+        }
+
+        // this can fail here and you are not checking it
+        groups_data[i].name = gsinfo ? strdup(gsinfo->gr_name) : NULL;
+        if (ginfo != NULL && group_data.name == NULL) {
+            fprintf(stderr, "group data malloc failed");
+            free(groups_ids);
+            free_memory(data_id, ngroups);
             exit(EXIT_FAILURE);
         }
 
-        groups_data[i].name = strdup(gsinfo->gr_name);
         groups_data[i].effective = gsinfo->gr_gid;
         // can here be a real / effective?
         groups_data[i].real = groups_data[i].effective;
@@ -249,7 +274,7 @@ void print_data(struct id_data data, size_t length,
     bool print_all = ((options.group + options.groups + options.user) == 0);
     if (print_all || options.user) {
         if (print_all)
-            printf("%s=%d(%s) ", "uid", data.user_data->effective,
+            printf("%s=%d(%s) ", "uid", data.user_data->real, // really real????
                    data.user_data->name);
         else {
             proper_print(data.user_data->effective, data.user_data->real,
@@ -259,8 +284,8 @@ void print_data(struct id_data data, size_t length,
 
     if (print_all || options.group) {
         if (print_all)
-            printf("%s=%d(%s) ", "gid", data.user_data->effective,
-                   data.user_data->name);
+            printf("%s=%d(%s) ", "gid", data.group_data->real, // really real???
+                   data.group_data->name);
         else {
             proper_print(data.group_data->effective, data.group_data->real,
                          data.group_data->name, options);
@@ -268,12 +293,23 @@ void print_data(struct id_data data, size_t length,
     }
 
     if (print_all || options.groups) {
-        if (print_all)
+        if (print_all) {
+            if (data.user_data->real != data.user_data->effective) {
+                struct passwd *eid = getpwuid(data.user_data->effective);
+                printf("euid=%d(%s) ", data.user_data->effective,
+                       eid ? eid->pw_name : "");
+            }
+            /*if (data.group_data->real != data.group_data->effective) {
+                struct group * eid = getgrgid(data.group_data->effective);
+                printf("euid=%d(%s) ", data.group_data->effective, eid ?
+            eid->gr_name : "");
+            }*/
             printf("groups=");
+        }
 
         for (size_t i = 0; i < length - 1; i++) {
             if (print_all) {
-                printf("%d(%s), ", (*data.groups_data + i)->effective,
+                printf("%d(%s), ", (*data.groups_data + i)->real,
                        (*data.groups_data + i)->name);
             } else {
                 proper_print((*data.groups_data + i)->effective,
