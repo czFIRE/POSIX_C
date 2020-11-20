@@ -16,14 +16,6 @@ struct option longopts[] = {
     {.val = 'u', .name = "user"},    {0},
 };
 
-struct program_options {
-    bool group;
-    bool groups;
-    bool name;
-    bool real;
-    bool user;
-};
-
 void print_options(struct program_options options)
 {
     printf("Group:\t%d\nGroups:\t%d\nName:\t%d\nReal:\t%d\nUser:\t%d\n",
@@ -69,16 +61,27 @@ int main(int argc, char *argv[])
         }
     }
 
-    print_options(options);
+    // print_options(options);
 
     /*get_user_info("1000");
     return EXIT_SUCCESS;*/
 
+    if ((options.group + options.groups + options.user) > 1) {
+        fprintf(stderr, "You can't set parameters -u, -g, -G in parallel\n");
+        return EXIT_FAILURE;
+    }
+
+    if (((options.group + options.groups + options.user) == 0) &&
+        (options.real || options.name)) {
+        fprintf(stderr, "Can't use name or real ID in default mode\n");
+        return EXIT_FAILURE;
+    }
+
     if (argc == optind) {
-        get_process_info();
+        get_process_info(options);
     } else {
         for (int i = optind; i < argc; ++i) {
-            get_user_info(argv[i]);
+            get_user_info(argv[i], options);
         }
     }
 
