@@ -71,6 +71,9 @@ int main(int argc, char *argv[])
 
     print_options(options);
 
+    /*get_user_info("1000");
+    return EXIT_SUCCESS;*/
+
     if (argc == optind) {
         get_process_info();
     } else {

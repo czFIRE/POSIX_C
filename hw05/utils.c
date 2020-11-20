@@ -93,6 +93,7 @@ void get_process_info(void)
     size_t num_groups = getgroups(0, NULL);
     gid_t *groups_ids = calloc(num_groups + 1, sizeof(gid_t));
     if (groups_ids == NULL) {
+        free(group_data.name);
         fprintf(stderr, "groups_ids malloc failed");
         exit(EXIT_FAILURE);
     }
@@ -104,6 +105,12 @@ void get_process_info(void)
     }
 
     struct name_id *groups_data = calloc(num_groups + 1, sizeof(struct name_id));
+    if (groups_data == NULL) {
+        free(groups_ids);
+        free(group_data.name);
+        fprintf(stderr, "groups_data malloc failed");
+        exit(EXIT_FAILURE);
+    }
 
     data_id.groups_data = &groups_data;
 
@@ -125,38 +132,124 @@ void get_process_info(void)
         groups_data[i].real = groups_data[i].effective;
     }
     free(groups_ids);
-    print_data(data_id);
+    print_data(data_id, num_groups);
     free_memory(data_id, num_groups);
 }
 
 void get_user_info(char *user_name)
 {
     // getpwnam / getpwuid (if I get UID as input)
+    struct passwd *uinfo;
+
+    char * endp;
+    int uid = strtol(user_name, &endp, 10);
+
+    if (user_name == endp) {
+        uinfo = getpwnam(user_name);
+        if (uinfo == NULL) {
+            fprintf(stderr, "getpwnam failed\n");
+            // this can be here because this will occur only with internal failure
+            exit(EXIT_FAILURE);
+        }
+    } else if (*endp == '\0') {
+        uinfo = getpwuid(uid);
+        if (uinfo == NULL) {
+            fprintf(stderr, "getpwuid failed\n");
+            // this can be here because this will occur only with internal failure
+            exit(EXIT_FAILURE);
+        }
+    } else {
+        fprintf(stderr, "Invalid user name / user id\n");
+        exit(EXIT_FAILURE);
+    }
+    
+    struct name_id user_data = {uinfo->pw_uid, uinfo->pw_uid, uinfo->pw_name};
+
+    struct id_data data_id = {0};
+    data_id.user_data = &user_data;
 
     // getgrgid
+
+    struct group *ginfo = getgrgid(uinfo->pw_gid);
+    if (ginfo == NULL) {
+        fprintf(stderr, "getgrgid failed\n");
+        // this can be here because this will occur only with internal failure
+        exit(EXIT_FAILURE);
+    }
+
+    struct name_id group_data = {ginfo->gr_gid, ginfo->gr_gid, strdup(ginfo->gr_name)};
+
+    data_id.group_data = &group_data;
+
+    //get group list
+
+    int ngroups = 0;
+    if (getgrouplist(uinfo->pw_name, uinfo->pw_gid, NULL, &ngroups) == -1) {
+        //maybe I could merge these 2
+        if (ngroups <= 0) {
+            free(group_data.name);
+            fprintf(stderr, "can't get ngroups");
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    gid_t *groups_ids = calloc(ngroups + 1, sizeof(gid_t));
+    if (groups_ids == NULL) {
+        free(group_data.name);
+        fprintf(stderr, "groups_ids malloc failed");
+        exit(EXIT_FAILURE);
+    }
+
+    if (getgrouplist(uinfo->pw_name, uinfo->pw_gid, groups_ids, &ngroups) == -1) {
+        free(group_data.name);
+        free(groups_ids);
+        error(EXIT_FAILURE, 0, "%s: Group list changed,", uinfo->pw_name);
+    }
+
+    struct name_id *groups_data = calloc(ngroups + 1, sizeof(struct name_id));
+    if (groups_data == NULL) {
+        free(groups_ids);
+        free(group_data.name);
+        fprintf(stderr, "groups_data malloc failed");
+        exit(EXIT_FAILURE);
+    }
+
+    data_id.groups_data = &groups_data;
+
+    for (int i = 0; i < ngroups; i++) {
+        struct group *gsinfo = getgrgid(groups_ids[i]);
+        if (gsinfo == NULL) {
+            free_memory(data_id, ngroups);
+            free(groups_ids);
+            fprintf(stderr, "getgrgid failed");
+            // this can be here because this will occur only with internal
+            // failure
+            exit(EXIT_FAILURE);
+        }
+
+        groups_data[i].name = strdup(gsinfo->gr_name);
+        groups_data[i].effective = gsinfo->gr_gid;
+        // can here be a real / effective?
+        groups_data[i].real = groups_data[i].effective;
+    }
+    free(groups_ids);
+    print_data(data_id, ngroups);
+    free_memory(data_id, ngroups);
 }
 
-void print_data(struct id_data data)
+void print_data(struct id_data data, size_t length)
 {
     printf("uid=%d(%s) ", data.user_data->effective, data.user_data->name);
     printf("gid=%d(%s) ", data.group_data->effective, data.group_data->name);
     printf("groups=");
 
-    // here can be a hillarious bug with memory access
-    /*for (size_t i = 0; i < length - 1; i++) {
+    for (size_t i = 0; i < length - 1; i++) {
         printf("%d(%s), ", (*data.groups_data + i)->effective,
                (*data.groups_data + i)->name);
-    }*/
-
-    size_t iter = 0;
-    while ((*data.groups_data + iter + 1)->name != 0) {
-        printf("%d(%s), ", (*data.groups_data + iter)->effective,
-               (*data.groups_data + iter)->name);
-        iter++;
     }
 
-    printf("%d(%s)\n", (*data.groups_data + iter)->effective,
-           (*data.groups_data + iter)->name);
+    printf("%d(%s)\n", (*data.groups_data + length - 1)->effective,
+           (*data.groups_data + length - 1)->name);
 }
 
 void free_memory(struct id_data data, size_t length) {

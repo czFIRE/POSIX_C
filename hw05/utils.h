@@ -23,6 +23,6 @@ void get_user_info(char *user_name);
 void version(void);
 void help(void);
 
-void print_data(struct id_data data);
+void print_data(struct id_data data, size_t length);
 
 #endif
