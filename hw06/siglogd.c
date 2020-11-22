@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include <getopt.h>
+#include <syslog.h>
 #include <unistd.h>
 
 static const char optstring[] = "dvi:";
@@ -27,7 +28,7 @@ int main(int argc, char *argv[])
             break;
 
         case 'd':
-            options.demon = true;
+            options.daemon = true;
             break;
         case 'i': {
             char *endp;
@@ -37,8 +38,7 @@ int main(int argc, char *argv[])
                 return EXIT_FAILURE;
             }
             options.interval = number;
-            } 
-            break;
+        } break;
 
         default:
             help();
@@ -46,5 +46,6 @@ int main(int argc, char *argv[])
         }
     }
 
+    logger(options);
     return EXIT_SUCCESS;
 }
