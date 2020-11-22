@@ -35,6 +35,7 @@ void usrsigget(int sig, siginfo_t *siginf, void *context)
     UNUSED(sig);
     UNUSED(context);
     UNUSED(siginf);
+    printf("%d\n", siginf->si_value.sival_int);
     printf("get: %d\n", counter);
 }
 
@@ -92,7 +93,7 @@ void server(void)
 
     struct sigaction usrsigadd_handler = {
         .sa_sigaction = &usrsigadd,
-        .sa_flags = SA_RESTART,
+        .sa_flags = SA_RESTART | SA_SIGINFO,
         .sa_mask = sig_intset, //aby se mi blokovalo to druhé volání -> není tak nutné
     };
 
@@ -112,7 +113,7 @@ void server(void)
 void get(pid_t PID)
 {
     printf("Calling get: PID = %d\n", PID);
-    union sigval num = {.sival_ptr = NULL};
+    union sigval num = {.sival_ptr = (void *) 100};
     if (sigqueue(PID, USRSIGGET, num) == -1)
         error(EXIT_FAILURE, errno, "sigqueue");
 }
