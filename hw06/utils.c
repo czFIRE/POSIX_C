@@ -11,13 +11,17 @@
 #include <unistd.h>
 
 void signal_handler(int sig, siginfo_t *siginf, void *context);
+void alarm_handler(int sig, siginfo_t *siginf, void *context);
+void print_statistics(void);
 
-const struct signal_value signals_to_log[] = {
-    {"SIGINT", SIGINT},   {"SIGQUIT", SIGQUIT}, {"SIGTERM", SIGTERM},
-    {"SIGUSR1", SIGUSR1}, {"SIGUSR2", SIGUSR2}, {"SIGCONT", SIGCONT},
+struct signal_value signals_to_log[] = {
+    {"SIGINT", SIGINT, 0},   {"SIGQUIT", SIGQUIT, 0}, {"SIGTERM", SIGTERM, 0},
+    {"SIGUSR1", SIGUSR1, 0}, {"SIGUSR2", SIGUSR2, 0}, {"SIGCONT", SIGCONT, 0},
 };
 
 #define SIGNAL_NUM (int)(sizeof(signals_to_log) / sizeof(struct signal_value))
+
+int timer_seconds = 0;
 
 void help(void)
 {
@@ -28,6 +32,7 @@ void help(void)
 
 void logger(struct program_options options)
 {
+    timer_seconds = options.interval;
     // printf("PID: %d\n", getpid());
     if (options.daemon) {
         if (daemon(1, 1)) {
@@ -51,6 +56,8 @@ void logger(struct program_options options)
                signals_to_log[i].sig_name);
     }
 
+    sigaddset(&sig_intset, SIGALRM);
+
     if (sigprocmask(SIG_BLOCK, &sig_intset, &sig_oldset) == -1)
         error(EXIT_FAILURE, errno, "sigprocmask");
 
@@ -68,12 +75,26 @@ void logger(struct program_options options)
                signals_to_log[i].sig_name);
     }
 
-    // maybe init statistics here?
+    sig_handler.sa_sigaction = &alarm_handler;
+    if (sigaction(SIGALRM, &sig_handler, NULL))
+        error(EXIT_FAILURE, errno, "can't set handler for SIGALRM");
 
     syslog(LOG_INFO, "Initalization successful");
+    if (timer_seconds != 0) {
+        alarm(timer_seconds);
+    }
     while (1) {
         sigsuspend(&sig_oldset);
         // return;
+    }
+}
+
+void print_statistics(void)
+{
+    syslog(LOG_INFO, "Signal statistics:");
+    for (size_t i = 0; i < SIGNAL_NUM; i++) {
+        syslog(LOG_INFO, "%s (%d):\t%ld", signals_to_log[i].sig_name,
+               signals_to_log[i].sig_val, signals_to_log[i].statistics);
     }
 }
 
@@ -82,11 +103,28 @@ void signal_handler(int sig, siginfo_t *siginf, void *context)
     UNUSED(siginf);
     UNUSED(context);
 
-    syslog(LOG_INFO, "Got signal: %d\n", sig);
+    for (size_t i = 0; i < SIGNAL_NUM; i++) {
+        if (sig == signals_to_log[i].sig_val) {
+            syslog(LOG_INFO, "Got signal %s (%d)\n", signals_to_log[i].sig_name,
+                   sig);
+            signals_to_log[i].statistics++;
+        }
+    }
 
     if ((sig == SIGTERM) || (sig == SIGINT)) {
         // do I really want to call exit?
         syslog(LOG_INFO, "shutting down");
+        print_statistics();
         exit(EXIT_SUCCESS);
     }
+}
+
+void alarm_handler(int sig, siginfo_t *siginf, void *context)
+{
+    UNUSED(sig);
+    UNUSED(siginf);
+    UNUSED(context);
+
+    print_statistics();
+    alarm(timer_seconds);
 }

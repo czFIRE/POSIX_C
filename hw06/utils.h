@@ -2,12 +2,14 @@
 #define SIGLOGD_UTILS_H
 
 #include <stdbool.h>
+#include <stddef.h>
 
 #define UNUSED(VAR) ((void)(VAR))
 
 struct signal_value {
-    char *sig_name;
-    int sig_val;
+    char const *const sig_name;
+    const int sig_val;
+    size_t statistics;
 };
 
 struct program_options {
