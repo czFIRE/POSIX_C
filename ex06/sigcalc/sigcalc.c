@@ -23,10 +23,11 @@ void usrsigadd(int sig, siginfo_t *siginf, void *context)
 {
     UNUSED(sig);
     UNUSED(context);
-    int value = siginf->si_int;
+    //int value = siginf->si_int;
+    union sigval value = siginf->si_value;
 
-    printf("add: %d\n", value);
-    counter += value;
+    printf("add: %d\n", value.sival_int);
+    counter += value.sival_int;
 }
 
 void usrsigget(int sig, siginfo_t *siginf, void *context)
@@ -92,6 +93,7 @@ void server(void)
     struct sigaction usrsigadd_handler = {
         .sa_sigaction = &usrsigadd,
         .sa_flags = SA_RESTART,
+        .sa_mask = sig_intset, //aby se mi blokovalo to druhé volání -> není tak nutné
     };
 
     if (sigaction(USRSIGADD, &usrsigadd_handler, NULL) != 0)
@@ -117,9 +119,8 @@ void get(pid_t PID)
 
 void add(pid_t PID, int number)
 {
-    printf("Calling get: PID = %d, number = %d\n", PID, number);
     union sigval num = {.sival_int = number};
-    // num.sival_int = number;
+    printf("Calling get: PID = %d, number = %d\n", PID, num.sival_int);
     if (sigqueue(PID, USRSIGADD, num) == -1)    // sigqueue má omezení pro ty nespolehlivé signály :O
         error(EXIT_FAILURE, errno, "sigqueue"); // ne, nemá, fuf
 }
