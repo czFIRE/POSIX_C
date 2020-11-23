@@ -22,6 +22,7 @@ struct signal_value signals_to_log[] = {
 #define SIGNAL_NUM (int)(sizeof(signals_to_log) / sizeof(struct signal_value))
 
 int timer_seconds = 0;
+//int process_pid = 0;
 
 void help(void)
 {
@@ -32,8 +33,8 @@ void help(void)
 
 void logger(struct program_options options)
 {
+    printf("MIN: %d\n", SIGRTMAX);
     timer_seconds = options.interval;
-    // printf("PID: %d\n", getpid());
     if (options.daemon) {
         if (daemon(1, 1)) {
             error(EXIT_FAILURE, errno, "daemon opennig failed");
@@ -43,6 +44,7 @@ void logger(struct program_options options)
     openlog(NULL, options.error ? LOG_PERROR : LOG_PID,
             options.daemon ? LOG_DAEMON : LOG_USER);
     syslog(LOG_INFO, "PID: %d", getpid());
+    //process_pid = getpid();
 
     sigset_t sig_intset;
     sigset_t sig_oldset;
@@ -122,9 +124,15 @@ void signal_handler(int sig, siginfo_t *siginf, void *context)
 void alarm_handler(int sig, siginfo_t *siginf, void *context)
 {
     UNUSED(sig);
-    UNUSED(siginf);
     UNUSED(context);
 
+    //printf("%d %d %d\n", siginf->si_pid, siginf->si_uid, siginf->si_value.sival_int);    
+    if (siginf->si_pid != 0) {
+        return;
+    }
+
     print_statistics();
-    alarm(timer_seconds);
+    if (timer_seconds != 0) {
+        alarm(timer_seconds);
+    }
 }
