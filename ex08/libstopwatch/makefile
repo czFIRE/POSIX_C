@@ -1,6 +1,7 @@
-TARGET = threads
-SOURCE = $(TARGET:=.c)
-OBJECT = $(TARGET:=.o)
+SOURCE = test.c stopwatch.c
+OBJECT = $(SOURCE:.c=.o)
+TARGET = test
+
 CFLAGS = -std=c99 -pedantic -Wall -Wextra
 CFLAGS += -pthread
 LDFLAGS += -pthread
@@ -8,13 +9,9 @@ LDFLAGS += -pthread
 all: $(TARGET)
 
 $(TARGET): $(OBJECT)
-$(OBJECT): $(SOURCE)
 
-detach: CPPFLAGS += -DENABLE_DETACH
-detach: all
-
-join: CPPFLAGS += -DENABLE_JOIN
-join: all
+test.o: stopwatch.h
+stopwatch.o: stopwatch.h
 
 clean:
 	$(RM) $(OBJECT)
