@@ -6,13 +6,12 @@
 #include <pthread.h>
 #include <unistd.h>
 
-#define UNUSED(VAR)             \
-    ((void) (VAR))
+#define UNUSED(VAR) ((void)(VAR))
 
-volatile
-int GLOBAL_FLAG = 0;
+volatile int GLOBAL_FLAG = 0;
 
 pthread_mutex_t flag_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t condition = PTHREAD_COND_INITIALIZER;
 
 void *run_thread(void *var)
 {
@@ -20,18 +19,19 @@ void *run_thread(void *var)
 
     int flag_is_set = 0;
 
+    assert(pthread_mutex_lock(&flag_mutex) == 0);
+
     while (!flag_is_set) {
-        assert(pthread_mutex_lock(&flag_mutex) == 0);
+        pthread_cond_wait(&condition, &flag_mutex);
         flag_is_set = GLOBAL_FLAG;
-        assert(pthread_mutex_unlock(&flag_mutex) == 0);
     }
+    assert(pthread_mutex_unlock(&flag_mutex) == 0);
 
     printf("flag is set\n");
     return NULL;
 }
 
-static const
-int THREADS = 2;
+static const int THREADS = 2;
 
 int main(void)
 {
@@ -47,6 +47,7 @@ int main(void)
 
     assert(pthread_mutex_lock(&flag_mutex) == 0);
     GLOBAL_FLAG = 1;
+    pthread_cond_broadcast(&condition);
     assert(pthread_mutex_unlock(&flag_mutex) == 0);
 
     for (int i = 0; i < THREADS; ++i) {
