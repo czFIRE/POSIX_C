@@ -12,6 +12,8 @@
 struct shared_worker_data {
     long threads;
     volatile int *counter;
+    pthread_mutex_t *mutex;
+    pthread_barrier_t *barrier;
 };
 
 struct worker {
@@ -25,8 +27,23 @@ void *worker_run(void *raw_data)
 {
     struct worker *worker = raw_data;
 
+    int pterrno;
+    if ((pterrno = pthread_barrier_wait(worker->shared->barrier)) != 0 && pterrno != PTHREAD_BARRIER_SERIAL_THREAD) {
+        error(0, pterrno, "barrier wait");
+        pthread_exit(NULL);
+    }
     for (long i = 0; i < worker->shared->threads; ++i) {
+        /*pterrno = pthread_mutex_lock(worker->shared->mutex);
+        if (pterrno != 0) {
+            error(0, mtxerrno, "mutex_lock");
+            pthread_exit(NULL);
+        }*/
         ++*worker->shared->counter;
+        /*pterrno = pthread_mutex_unlock(worker->shared->mutex);
+        if (pterrno != 0) {
+            error(0, mtxerrno, "mutex_unlock");
+            pthread_exit(NULL);
+        }*/
     }
 
     pthread_exit(NULL);
@@ -58,12 +75,30 @@ int main(int argc, char *argv[])
 
     int status = EXIT_FAILURE;
 
+    //maybe set attributes?
+    // this didn't work and I don't know why
+    /*pthread_mutex_t thread_mutex;
+    int mtxerrno = pthread_mutex_init(&thread_mutex, NULL);
+
+    if (mtxerrno != 0) {
+        error(EXIT_FAILURE, mtxerrno, "mutex_init");
+    }*/
+
+    pthread_mutex_t thread_mutex = PTHREAD_MUTEX_INITIALIZER;
+    int pterrno;
+    pthread_barrier_t barrier;
+    if ((pterrno = pthread_barrier_init(&barrier, NULL, threads)) != 0) {
+        error(EXIT_FAILURE, pterrno, "barrier init");
+    }
+
     struct shared_worker_data shared_data = {
         .threads = threads,
         .counter = &counter,
+        .mutex = &thread_mutex,
+        .barrier = &barrier,
     };
 
-    int pterrno;
+
     for (long tx = 0; tx < threads; ++tx) {
         struct worker *worker = &workers[tx];
         worker->id = tx;
@@ -80,6 +115,15 @@ int main(int argc, char *argv[])
 join_threads:
     for (long tx = 0; tx < threads; ++tx) {
         assert(pthread_join(workers[tx].thread, NULL) == 0);
+    }
+
+    /*mtxerrno = pthread_mutex_destroy(&thread_mutex);
+    if (mtxerrno != 0) {
+        error(EXIT_FAILURE, mtxerrno, "mutex_destroy");
+    }*/
+
+    if ((pterrno = pthread_barrier_destroy(&barrier)) != 0) {
+        error(0, pterrno, "barrier destroy");
     }
 
     printf(u8"expected: %ld² = %d\n", threads, counter);
