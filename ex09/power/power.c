@@ -28,7 +28,8 @@ void *worker_run(void *raw_data)
     struct worker *worker = raw_data;
 
     int pterrno;
-    if ((pterrno = pthread_barrier_wait(worker->shared->barrier)) != 0 && pterrno != PTHREAD_BARRIER_SERIAL_THREAD) {
+    if ((pterrno = pthread_barrier_wait(worker->shared->barrier)) != 0 &&
+        pterrno != PTHREAD_BARRIER_SERIAL_THREAD) {
         error(0, pterrno, "barrier wait");
         pthread_exit(NULL);
     }
@@ -75,7 +76,7 @@ int main(int argc, char *argv[])
 
     int status = EXIT_FAILURE;
 
-    //maybe set attributes?
+    // maybe set attributes?
     // this didn't work and I don't know why
     /*pthread_mutex_t thread_mutex;
     int mtxerrno = pthread_mutex_init(&thread_mutex, NULL);
@@ -98,14 +99,13 @@ int main(int argc, char *argv[])
         .barrier = &barrier,
     };
 
-
     for (long tx = 0; tx < threads; ++tx) {
         struct worker *worker = &workers[tx];
         worker->id = tx;
         worker->shared = &shared_data;
 
-        if ((pterrno = pthread_create(&worker->thread, NULL,
-                    &worker_run, worker)) != 0) {
+        if ((pterrno = pthread_create(&worker->thread, NULL, &worker_run,
+                                      worker)) != 0) {
             error(0, pterrno, "cannot start thread %ld", tx);
             threads = tx;
             goto join_threads;
