@@ -11,12 +11,21 @@
 #include <pthread.h>
 #include <unistd.h>
 
+// sqrt 5 without mods => 75 errors
+// closely together => 18 errors
+// only read lock => 8 errors
+
+//
+
 struct common_thread_data {
     unsigned id;
     pthread_t thread;
 };
 
 struct shared_thread_data {
+    pthread_rwlock_t *lock;
+
+    // problem is here, we need to signalise, that
     volatile bool finished;
 
     volatile struct {
@@ -26,18 +35,20 @@ struct shared_thread_data {
 };
 
 struct consumer_data {
-    struct common_thread_data  common;
+    struct common_thread_data common;
     struct shared_thread_data *shared;
 
     long errors;
 };
 
 struct producer_data {
-    struct common_thread_data  common;
+    struct common_thread_data common;
     struct shared_thread_data *shared;
 
     long iterations;
 };
+
+pthread_rwlock_t finished_rwlock = PTHREAD_RWLOCK_INITIALIZER;
 
 // Fun fact, there is an ancient (and unfortunately, long abandoned) OS
 // experiment called “Plan 9”¹ which had its own C extensions. These
@@ -61,9 +72,16 @@ struct producer_data {
 // ¹ Yes, this is a direct reference to this film
 //   https://www.imdb.com/title/tt0052077/
 
-static
-void *consumer_run(void *raw_data)
+static void *consumer_run(void *raw_data)
 {
+    int pterror;
+
+    if ((pterror = pthread_rwlock_rdlock(&finished_rwlock)) != 0) {
+        error(0, pterror, "wrlock");
+    }
+    if ((pterror = pthread_rwlock_unlock(&finished_rwlock)) != 0) {
+        error(0, pterror, "unlock");
+    }
     struct consumer_data *consumer = raw_data;
 
     // reader thread should not modify data if not necessary, so we
@@ -71,48 +89,85 @@ void *consumer_run(void *raw_data)
     const struct shared_thread_data *state = consumer->shared;
 
     consumer->errors = 0;
+    // race cond here
     while (!consumer->shared->finished) {
         // verify that s is the nearest integral square root
         // of n that does not exceed the actual square root,
         // that is, ⟦s² ≤ n < (s + 1)²⟧
-        if (state->s * state->s > state->n ||
-                state->n >= (state->s + 1) * (state->s + 1)) {
+
+        
+        if ((pterror = pthread_rwlock_rdlock(state->lock)) != 0) {
+            error(0, pterror, "wrlock");
+        }
+
+        long temp_s = state->s, temp_n = state->n;
+
+        if ((pterror = pthread_rwlock_unlock(state->lock)) != 0) {
+            error(0, pterror, "unlock");
+        }
+
+        if (temp_s * temp_s > temp_n || temp_n >= (temp_s + 1) * (temp_s + 1)) {
             printf("thread %d: mismatch detected\n", consumer->common.id);
             ++consumer->errors;
-            usleep(1000); // 1 ms to avoid the same error again
+            // usleep(1000); // 1 ms to avoid the same error again
         }
 
         // here the thread would usually use the shared data for
         // some computation
     }
 
+
+
     pthread_exit(NULL);
 }
 
-static
-void *producer_run(void *raw_data)
+static void *producer_run(void *raw_data)
 {
+    int pterror;
+
     struct producer_data *producer = raw_data;
     struct shared_thread_data *state = producer->shared;
 
     for (long i = 0; i < producer->iterations; ++i) {
         // generate some random number
-        state->n = 128 + rand() % 4096;
+        // state->n = 128 + rand() % 4096;
 
         // now get the square root by the intentinally dumbest
         // algorithm I was able to concieve
-        for (state->s = state->n; state->s * state->s > state->n; --state->s)
-            /* nop, that is how dumb this algorithm is */;
+        // for (state->s = state->n; state->s * state->s > state->n;
+        // --state->s);
+        /* nop, that is how dumb this algorithm is */
+
+        long temp_n = 128 + rand() % 4096;
+        long temp_s = temp_n;
+
+        for (; temp_s * temp_s > temp_n; --temp_s)
+            ;
+
+        if ((pterror = pthread_rwlock_wrlock(state->lock)) != 0) {
+            error(0, pterror, "wrlock");
+        }
+        state->n = temp_n;
+        state->s = temp_s;
+        if ((pterror = pthread_rwlock_unlock(state->lock)) != 0) {
+            error(0, pterror, "unlock");
+        }
 
         // ok, got the number, sleep for a while so that other threads
         // would be able to check the final result
-        printf(u8"producer: commit %ld² ≤ %ld (%ld / %ld)\n", state->s, state->n,
-                i, producer->iterations);
-        usleep(5000); // 5 ms to counter that 1 ms sleep in consumer_run()
+        printf(u8"producer: commit %ld² ≤ %ld (%ld / %ld)\n", state->s,
+               state->n, i, producer->iterations);
+        // usleep(5000); // 5 ms to counter that 1 ms sleep in consumer_run()
     }
 
-    // done
+    // done, introduce race cond
+    if ((pterror = pthread_rwlock_wrlock(&finished_rwlock)) != 0) {
+        error(0, pterror, "wrlock");
+    }
     state->finished = true;
+    if ((pterror = pthread_rwlock_unlock(&finished_rwlock)) != 0) {
+        error(0, pterror, "unlock");
+    }
     pthread_exit(NULL);
 }
 
@@ -133,18 +188,21 @@ int main(int argc, char *argv[])
     if (endp == argv[1] || *endp != 0 || errno != 0 || threads <= 0)
         error(EXIT_FAILURE, errno, "%s: not a positive integer", argv[1]);
 
-    struct producer_data producer = { 0 };
+    struct producer_data producer = {0};
     struct consumer_data *consumers = malloc(sizeof(*consumers) * threads);
     if (consumers == NULL)
         error(EXIT_FAILURE, errno, "cannot allocate memory for worker threads");
 
     int status = EXIT_FAILURE;
 
+    int pterrno;
+
+    pthread_rwlock_t rwlock = PTHREAD_RWLOCK_INITIALIZER;
+
     struct shared_thread_data shared_data = {
         .finished = false,
+        .lock = &rwlock,
     };
-
-    int pterrno;
     long errors = 0;
 
     // run the consumers first, they will see 0² = 0, which is fine
@@ -154,7 +212,7 @@ int main(int argc, char *argv[])
         consumer->shared = &shared_data;
 
         if ((pterrno = pthread_create(&consumer->common.thread, NULL,
-                    &consumer_run, consumer)) != 0) {
+                                      &consumer_run, consumer)) != 0) {
             error(0, pterrno, "cannot start consumer %ld", tx);
             threads = tx;
             goto join_consumers;
@@ -166,8 +224,8 @@ int main(int argc, char *argv[])
     producer.iterations = 5 * threads;
     producer.shared = &shared_data;
 
-    if ((pterrno = pthread_create(&producer.common.thread, NULL,
-                &producer_run, &producer)) != 0) {
+    if ((pterrno = pthread_create(&producer.common.thread, NULL, &producer_run,
+                                  &producer)) != 0) {
         error(0, pterrno, "cannot start producer thread");
         goto join_consumers;
     }
