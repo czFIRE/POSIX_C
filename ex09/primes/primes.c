@@ -11,7 +11,6 @@
 struct shared_data {
     volatile bool finished;
     struct list *list;
-
 };
 
 struct thread_data {
@@ -22,8 +21,10 @@ struct thread_data {
     long counter;
 };
 
-static inline
-bool is_prime(int n)
+pthread_mutex_t list_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t condition = PTHREAD_COND_INITIALIZER;
+
+static inline bool is_prime(int n)
 {
     assert(n >= 0);
 
@@ -48,7 +49,13 @@ void *run_producer(void *ptr)
         if (!is_prime(k))
             continue;
 
-        if (!list_push(data->shared->list, k))
+        //
+        assert(pthread_mutex_lock(&list_mutex) == 0);
+        bool tmp = !list_push(data->shared->list, k);
+        assert(pthread_cond_signal(&condition) == 0);
+        assert(pthread_mutex_unlock(&list_mutex) == 0);
+
+        if (tmp)
             error(0, errno, "producer %ld: failed to push data", data->id);
         else
             ++data->counter;
@@ -64,8 +71,22 @@ void *run_consumer(void *ptr)
 
     while (true) {
         int k;
-        if (!list_pop(data->shared->list, &k)) {
-            // no data
+        // .
+        assert(pthread_mutex_lock(&list_mutex) == 0);
+
+        while (list_is_empty(data->shared->list)) {
+            pthread_cond_wait(&condition, &list_mutex);
+            if (data->shared->finished) {
+                assert(pthread_mutex_unlock(&list_mutex) == 0);
+                pthread_exit(NULL);
+            }
+        }
+
+        bool tmp = !list_pop(data->shared->list, &k);
+        assert(pthread_mutex_unlock(&list_mutex) == 0);
+
+        if (tmp) {
+            // no data -> gotta check this
             if (data->shared->finished) {
                 // … and there will never be more data :/
                 break;
@@ -85,18 +106,19 @@ void *run_consumer(void *ptr)
 static const int PRODUCERS = 5;
 static const int CONSUMERS = 2;
 
-static
-bool _run_bulk(size_t count, struct thread_data thread_data[count], size_t *actual,
-        struct shared_data *shared, void *(*function)(void*))
+static bool _run_bulk(size_t count, struct thread_data thread_data[count],
+                      size_t *actual, struct shared_data *shared,
+                      void *(*function)(void *))
 {
     int pterrno;
 
     for (*actual = 0u; *actual < count; ++*actual) {
         struct thread_data *data = &thread_data[*actual];
-        data->id = (long) *actual;
+        data->id = (long)*actual;
         data->shared = shared;
 
-        if ((pterrno = pthread_create(&data->thread, NULL, function, data)) != 0) {
+        if ((pterrno = pthread_create(&data->thread, NULL, function, data)) !=
+            0) {
             error(0, pterrno, "cannot create thread %zu", *actual);
             return false;
         }
@@ -127,26 +149,32 @@ int main(void)
     struct {
         long consumed;
         long produced;
-    } counter = { 0 };
+    } counter = {0};
 
     size_t actual_producers, actual_consumers;
 
     // create consumers first
-    if (!_run_bulk(CONSUMERS, consumers, &actual_consumers, &shared, &run_consumer))
+    if (!_run_bulk(CONSUMERS, consumers, &actual_consumers, &shared,
+                   &run_consumer))
         goto join_consumers;
 
-    if (!_run_bulk(PRODUCERS, producers, &actual_producers, &shared, &run_producer))
+    if (!_run_bulk(PRODUCERS, producers, &actual_producers, &shared,
+                   &run_producer))
         goto join_producers;
 
 join_producers:
+    //printf("Producers:\n");
     for (size_t tx = 0; tx < actual_producers; ++tx) {
         assert(pthread_join(producers[tx].thread, NULL) == 0);
         counter.produced += producers[tx].counter;
     }
 
 join_consumers:
+    //printf("Consumers:\n");
     // tell consumers that there will be no more elements
     shared.finished = true;
+    // I want to make sure, that all consumers get this "signal"
+    pthread_cond_broadcast(&condition);
 
     for (size_t tx = 0; tx < actual_consumers; ++tx) {
         assert(pthread_join(consumers[tx].thread, NULL) == 0);
