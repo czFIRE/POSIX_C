@@ -33,7 +33,7 @@ void help(void)
 
 void logger(struct program_options options)
 {
-    printf("MIN: %d\n", SIGRTMAX);
+    //printf("MIN: %d\n", SIGRTMAX);
     timer_seconds = options.interval;
     if (options.daemon) {
         if (daemon(1, 1)) {
