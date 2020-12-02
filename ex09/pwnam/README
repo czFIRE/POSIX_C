@@ -1,0 +1,19 @@
+Demonstration of problems with non-reentrant functions
+------------------------------------------------------
+
+The program "pwnam" should print UID of user 0 and 1000 like
+
+    0: root
+    1000: xlacko1
+
+However, with a small probability, the getpwuid function shall
+get interrupted before context switch and another thread may
+overwrite the static data.
+
+Run "make run" which will run 1000 iterations and print mismatching
+logins for uid 0, like this:
+
+    $ make run
+    0: xlacko1
+    0: xlacko1
+    ...
