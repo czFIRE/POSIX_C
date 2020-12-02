@@ -76,12 +76,6 @@ static void *consumer_run(void *raw_data)
 {
     int pterror;
 
-    if ((pterror = pthread_rwlock_rdlock(&finished_rwlock)) != 0) {
-        error(0, pterror, "wrlock");
-    }
-    if ((pterror = pthread_rwlock_unlock(&finished_rwlock)) != 0) {
-        error(0, pterror, "unlock");
-    }
     struct consumer_data *consumer = raw_data;
 
     // reader thread should not modify data if not necessary, so we
@@ -90,12 +84,19 @@ static void *consumer_run(void *raw_data)
 
     consumer->errors = 0;
     // race cond here
-    while (!consumer->shared->finished) {
+    if ((pterror = pthread_rwlock_rdlock(&finished_rwlock)) != 0) {
+        error(0, pterror, "wrlock");
+    }
+    bool cond = !consumer->shared->finished;
+    if ((pterror = pthread_rwlock_unlock(&finished_rwlock)) != 0) {
+        error(0, pterror, "unlock");
+    }
+
+    while (cond) {
         // verify that s is the nearest integral square root
         // of n that does not exceed the actual square root,
         // that is, ⟦s² ≤ n < (s + 1)²⟧
 
-        
         if ((pterror = pthread_rwlock_rdlock(state->lock)) != 0) {
             error(0, pterror, "wrlock");
         }
@@ -114,9 +115,15 @@ static void *consumer_run(void *raw_data)
 
         // here the thread would usually use the shared data for
         // some computation
+
+        if ((pterror = pthread_rwlock_rdlock(&finished_rwlock)) != 0) {
+            error(0, pterror, "wrlock");
+        }
+        cond = !consumer->shared->finished;
+        if ((pterror = pthread_rwlock_unlock(&finished_rwlock)) != 0) {
+            error(0, pterror, "unlock");
+        }
     }
-
-
 
     pthread_exit(NULL);
 }
