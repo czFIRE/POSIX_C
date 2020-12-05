@@ -59,18 +59,19 @@ void *thread_run(void *param)
     }
     searcher->opened = true;
 
+    char *(*string_find)(const char *, const char *);
+    if (searcher->shared->insensitive) {
+        string_find = strcasestr;
+    } else {
+        string_find = strstr;
+    }
+
     size_t line_num = 0;
     while ((read = getline(&line, &len, input)) != EOF) {
-        char *location;
-        if (searcher->shared->insensitive) {
-            location = strcasestr(line, searcher->shared->string);
-        } else {
-            location = strstr(line, searcher->shared->string);
-        }
+        char *location = string_find(line, searcher->shared->string);
 
         if (location != 0) {
             searcher->found = true;
-            printf("here\n");
             printf("%s: ", searcher->file_name);
             if (searcher->shared->line_number) {
                 printf("%ld: ", line_num);
