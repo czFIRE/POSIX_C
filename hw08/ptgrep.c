@@ -68,42 +68,42 @@ void *thread_run(void *param)
 
     size_t line_num = 0, string_length = strlen(searcher->shared->string);
     while ((read = getline(&line, &len, input)) != EOF) {
-        char *location = string_find(line, searcher->shared->string);
+        char *location;
 
-        if (location != 0) {
+        char *line_copy = line;
+        while ((location = string_find(line_copy, searcher->shared->string)) !=
+               NULL) {
             searcher->found = true;
             printf("%s: ", searcher->file_name);
             if (searcher->shared->line_number) {
                 printf("%ld: ", line_num);
             }
 
-            size_t offset = location - line;
-            char tmp = line[offset];
-            line[offset] = '\0';
-            printf("%s", line);
-            line[offset] = tmp;
+            if (!isatty(STDOUT_FILENO)) {
+                printf("%s", line);
+            }
 
-            char * line_copy = location;
+            // it's a spaghetti monster and I am really sorry
+            size_t offset = location - line_copy;
+            char tmp = line_copy[offset];
+            line_copy[offset] = '\0';
+            printf("%s", line);
+            line_copy[offset] = tmp;
+
+            line_copy = location;
 
             tmp = line_copy[string_length];
             line_copy[string_length] = '\0';
-            printf("\x1b[32m%s\x1b[0m", line_copy);
+            printf("\x1b[35m%s\x1b[0m", line_copy);
             line_copy[string_length] = tmp;
-
-            //line_copy++;
 
             printf("%s", line_copy + string_length);
 
-            /*while ((location = string_find(line, searcher->shared->string)) != NULL) {
-                offset = location - line_copy;
-                tmp = line_copy[offset];
-                line[offset] = '\0';
-                printf("%s", line);
-                line[offset] = tmp;
+            line_copy++;
 
-                char * line_copy = location + 1;
-            }*/
-            
+            // edge case handler
+            if (line_copy > line + strlen(line))
+                break;
         }
 
         line_num++;
