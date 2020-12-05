@@ -10,7 +10,8 @@
 #include <pthread.h>
 #include <unistd.h>
 
-#define UNUSED(x) ((void)(x))
+#define CANT_OPEN_FILE (void *)1
+#define STRING_NOT_FOUND (void *)2
 
 void help(const char *argv0)
 {
@@ -38,6 +39,9 @@ struct thread_data {
     pthread_t thread;
     char *file_name;
     struct shared_thread_data *shared;
+
+    bool opened;
+    bool found;
 };
 
 void *thread_run(void *param)
@@ -48,16 +52,14 @@ void *thread_run(void *param)
     size_t len = 0;
     ssize_t read;
 
-    size_t line_num = 0;
-
-    // printf("opening file %s\n", searcher->file_name);
     FILE *input = fopen(searcher->file_name, "r");
     if (input == NULL) {
         fprintf(stderr, "Can't open file: %s\n", searcher->file_name);
-        return (void *)1;
+        return CANT_OPEN_FILE;
     }
+    searcher->opened = true;
 
-    size_t found = 0;
+    size_t line_num = 0;
     while ((read = getline(&line, &len, input)) != EOF) {
         char *location;
         if (searcher->shared->insensitive) {
@@ -67,6 +69,8 @@ void *thread_run(void *param)
         }
 
         if (location != 0) {
+            searcher->found = true;
+            printf("here\n");
             printf("%s: ", searcher->file_name);
             if (searcher->shared->line_number) {
                 printf("%ld: ", line_num);
@@ -77,12 +81,11 @@ void *thread_run(void *param)
         line_num++;
     }
 
-    fflush(stdout);
     fclose(input);
     free(line);
 
-    if (found == 0) {
-        return (void *)1;
+    if (!searcher->found) {
+        return STRING_NOT_FOUND;
     }
 
     return NULL;
@@ -135,25 +138,25 @@ int main(int argc, char *argv[])
         struct thread_data *searcher = &searchers[i];
         searcher->file_name = argv[optind + i + 1];
         searcher->shared = &shared;
+        searcher->opened = false;
+        searcher->found = false;
 
         if ((perrno = pthread_create(&searcher->thread, NULL, &thread_run,
                                      searcher)) != 0)
             error(EXIT_FAILURE, perrno, "pthread_create");
     }
 
-    printf("Threads created\n");
-
-    int result = 0;
+    bool opened = true, found = false;
     for (int i = 0; i < thread_num; i++) {
         void *retval = (void *)1;
         if ((perrno = pthread_join(searchers[i].thread, &retval)) != 0)
             error(0, perrno, "pthread_join");
-        result += (int)retval;
+        opened = opened && searchers[i].opened;
+        found = found || searchers[i].found;
     }
-    printf("\nThreads joined\n");
 
     free(searchers);
-    if (result == thread_num) {
+    if (!opened || !found) {
         return EXIT_FAILURE;
     }
     return EXIT_SUCCESS;
