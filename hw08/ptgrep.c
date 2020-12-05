@@ -66,7 +66,7 @@ void *thread_run(void *param)
         string_find = strstr;
     }
 
-    size_t line_num = 0;
+    size_t line_num = 0, string_length = strlen(searcher->shared->string);
     while ((read = getline(&line, &len, input)) != EOF) {
         char *location = string_find(line, searcher->shared->string);
 
@@ -76,7 +76,34 @@ void *thread_run(void *param)
             if (searcher->shared->line_number) {
                 printf("%ld: ", line_num);
             }
+
+            size_t offset = location - line;
+            char tmp = line[offset];
+            line[offset] = '\0';
             printf("%s", line);
+            line[offset] = tmp;
+
+            char * line_copy = location;
+
+            tmp = line_copy[string_length];
+            line_copy[string_length] = '\0';
+            printf("\x1b[32m%s\x1b[0m", line_copy);
+            line_copy[string_length] = tmp;
+
+            //line_copy++;
+
+            printf("%s", line_copy + string_length);
+
+            /*while ((location = string_find(line, searcher->shared->string)) != NULL) {
+                offset = location - line_copy;
+                tmp = line_copy[offset];
+                line[offset] = '\0';
+                printf("%s", line);
+                line[offset] = tmp;
+
+                char * line_copy = location + 1;
+            }*/
+            
         }
 
         line_num++;
