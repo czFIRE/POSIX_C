@@ -15,7 +15,7 @@
 // closely together => 18 errors
 // only read lock => 8 errors
 
-//
+// bonus -> přidat atribut zapisovatele, že ho preferujeme NONRECURSIVE_NP
 
 struct common_thread_data {
     unsigned id;

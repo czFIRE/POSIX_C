@@ -52,13 +52,19 @@ void *run_producer(void *ptr)
         //
         assert(pthread_mutex_lock(&list_mutex) == 0);
         bool tmp = !list_push(data->shared->list, k);
-        assert(pthread_cond_signal(&condition) == 0);
-        assert(pthread_mutex_unlock(&list_mutex) == 0);
-
-        if (tmp)
+        if (tmp) {
             error(0, errno, "producer %ld: failed to push data", data->id);
-        else
+        }
+        else {
+            // <= waiting threads
+            // if (list_size() == 1) {
+            //      signal
+            // }
+            assert(pthread_cond_signal(&condition) == 0);
             ++data->counter;
+        }
+        // unlock
+        assert(pthread_mutex_unlock(&list_mutex) == 0);
     }
 
     pthread_exit(NULL);
@@ -85,16 +91,21 @@ void *run_consumer(void *ptr)
         bool tmp = !list_pop(data->shared->list, &k);
         assert(pthread_mutex_unlock(&list_mutex) == 0);
 
+        // lock
+        // while (tmp)
         if (tmp) {
             // no data -> gotta check this
             if (data->shared->finished) {
                 // … and there will never be more data :/
+                // unlock
                 break;
             }
 
+            // wait
             // all right, try again
             continue;
         }
+        //unlock
 
         // yey, got a prime!
         ++data->counter;
@@ -171,10 +182,12 @@ join_producers:
 
 join_consumers:
     //printf("Consumers:\n");
+    // lock
     // tell consumers that there will be no more elements
     shared.finished = true;
     // I want to make sure, that all consumers get this "signal"
     pthread_cond_broadcast(&condition);
+    // unlock
 
     for (size_t tx = 0; tx < actual_consumers; ++tx) {
         assert(pthread_join(consumers[tx].thread, NULL) == 0);

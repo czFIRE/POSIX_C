@@ -27,24 +27,24 @@ void *worker_run(void *raw_data)
 {
     struct worker *worker = raw_data;
 
-    int pterrno;
+    int pterrno, mtxerrno;
     if ((pterrno = pthread_barrier_wait(worker->shared->barrier)) != 0 &&
         pterrno != PTHREAD_BARRIER_SERIAL_THREAD) {
         error(0, pterrno, "barrier wait");
         pthread_exit(NULL);
     }
     for (long i = 0; i < worker->shared->threads; ++i) {
-        /*pterrno = pthread_mutex_lock(worker->shared->mutex);
+        pterrno = pthread_mutex_lock(worker->shared->mutex);
         if (pterrno != 0) {
-            error(0, mtxerrno, "mutex_lock");
+            error(0, pterrno, "mutex_lock");
             pthread_exit(NULL);
-        }*/
+        }
         ++*worker->shared->counter;
-        /*pterrno = pthread_mutex_unlock(worker->shared->mutex);
+        pterrno = pthread_mutex_unlock(worker->shared->mutex);
         if (pterrno != 0) {
-            error(0, mtxerrno, "mutex_unlock");
+            error(0, pterrno, "mutex_unlock");
             pthread_exit(NULL);
-        }*/
+        }
     }
 
     pthread_exit(NULL);
@@ -78,14 +78,14 @@ int main(int argc, char *argv[])
 
     // maybe set attributes?
     // this didn't work and I don't know why
-    /*pthread_mutex_t thread_mutex;
+    pthread_mutex_t thread_mutex;
     int mtxerrno = pthread_mutex_init(&thread_mutex, NULL);
 
     if (mtxerrno != 0) {
         error(EXIT_FAILURE, mtxerrno, "mutex_init");
-    }*/
+    }
 
-    pthread_mutex_t thread_mutex = PTHREAD_MUTEX_INITIALIZER;
+    //pthread_mutex_t thread_mutex = PTHREAD_MUTEX_INITIALIZER;
     int pterrno;
     pthread_barrier_t barrier;
     if ((pterrno = pthread_barrier_init(&barrier, NULL, threads)) != 0) {
@@ -111,6 +111,8 @@ int main(int argc, char *argv[])
             goto join_threads;
         }
     }
+
+   /* zde zrusit vlakna pomocí pthread_cancel, protoze mohou viset na bariere */
 
 join_threads:
     for (long tx = 0; tx < threads; ++tx) {
