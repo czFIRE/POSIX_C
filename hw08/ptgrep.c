@@ -81,6 +81,7 @@ void *thread_run(void *param)
 
             if (!isatty(STDOUT_FILENO)) {
                 printf("%s", line);
+                continue;
             }
 
             // it's a spaghetti monster and I am really sorry

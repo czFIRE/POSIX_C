@@ -17,6 +17,9 @@ void print_argv(char *argv[])
     }
 }
 
+// potřebuji 2 forky => nemáme se jak dozvědět, že skončili
+// též potřebuji vědět to, že je mám ukončit
+
 int child(int pipefd[2], char *argv[])
 {
     // we don't need the reading handle
@@ -41,7 +44,7 @@ int parent(int pipefd[2], char *argv[])
         err(EXIT_FAILURE, "dup2");
 
     // signal EOF
-    close(pipefd[0]);
+    // close(pipefd[0]);
 
     // execute the second program
     execvp(argv[0], argv);

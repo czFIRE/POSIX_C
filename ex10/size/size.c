@@ -18,6 +18,8 @@ int callback(const char *path, const struct stat *sb, int tf, struct FTW *ftwb)
     UNUSED(path);
     UNUSED(ftwb);
 
+    // můžeme využít inline funkci a takhle vyřešit problém globalních
+
     switch (tf) {
     // file where stat failed
     case FTW_NS:
