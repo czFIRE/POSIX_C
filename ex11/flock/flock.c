@@ -86,7 +86,7 @@ void locker(struct options options, char *args[])
         break;
 
     case write_lock:
-        flags = O_RDONLY | O_CREAT;
+        flags = O_WRONLY | O_CREAT;
         break;
 
     case nonblock_lock:
@@ -103,17 +103,30 @@ void locker(struct options options, char *args[])
 
     int file;
 
-    if ((file = open(args[0], flags)) == -1) {
+    if ((file = open(args[0], flags, S_IRUSR | S_IWUSR | S_IRGRP | S_ IRDTH )) == -1) {
         error(1, errno, "open(%s)", args[0]);
     }
 
     // fcntl -> fails with ebadf, but I don't have time to solve this :(
     // I think I am stupid and I have no fucking clue, what I am supposed to do
+
+    // O_OFD_SETLK
     if (fcntl(file, F_SETLK, &lock_opt) == -1) {
         error(1, errno, "fnctl");
     }
 
-    // exec
+    // exec + fork :david:
     execvp(args[2], args + 2);
     err(EXIT_FAILURE, "execvp");
 }
+
+/* 
+rozdil v zamcich => při pid procesu / rozšířené atributy
+nemůžeme použít běžné zámky => musíme použít flock nebo "open file destriptor" a BSD zámky
+
+ještě musíme předat zámek potomkovi
+
+10:17 => řešení
+
+10:45 => komentář
+*/

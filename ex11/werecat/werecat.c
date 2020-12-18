@@ -30,6 +30,7 @@ int main(int argc, char *argv[])
         if ((fds[i].fd = open(argv[i + 1], O_RDONLY | O_NONBLOCK)) == -1) {
             error(EXIT_FAILURE, errno, "open(%s)", argv[i + 1]);
         }
+        fds[i].events = POLLIN;
     }
 
     // put these FD into an array of struct pollfd
@@ -43,7 +44,7 @@ int main(int argc, char *argv[])
     ssize_t rd = 0, wt = 0;
     // while(poll(fds, argc - 1, 0) != 0) ...
     // go through fds, check .revents for retvalues, handle them
-    while (poll(fds, argc - 1, 0) > 0) {
+    while (poll(fds, argc - 1, -1) > 0) {
         for (size_t i = 0; i < argc - 1; i++) {
             // can read
             if (fds[i].revents & POLLIN) {
@@ -68,6 +69,7 @@ int main(int argc, char *argv[])
                 fds[i].fd = -1;
             }
 
+            // closed
             if (fds[i].revents & POLLHUP) {
                 fds[i].fd = -1;
             }
@@ -85,3 +87,22 @@ int main(int argc, char *argv[])
     // why the fuck AM I SUCH A DISGRACE WHO DOESN'T FUCKING UNDERSTAND THINGS
     return EXIT_SUCCESS;
 }
+
+/*
+viz příspěvek na Discordu
+
+jakmile read narazí na EOF, tak mi vrátí 0
+
+vysvětlení 10:50
+
+*/
+
+
+/*
+stačí zavolat jeden read => zapíše nám to celou událost
+zavolat read na descriptoru na inotify v buferu
+nemusím dookola alokovat pamět, stačí buffer alespoň na jednu událost
+data driven programming se tam dalo využít
+
+vysvětlení 10:38
+*/
