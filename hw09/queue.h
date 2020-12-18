@@ -27,6 +27,7 @@ struct queue;
 enum queue_error_codes {
     QUEUE_SUCCESS = 0,
     ALLOC_FAILURE,
+    WRONG_QUEUE_ARG,
 };
 
 //--[  Constructor and Destructor  ]-------------------------------------------

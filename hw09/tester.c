@@ -37,16 +37,18 @@ static const int THREADS = 2;*/
 
 int main(void)
 {
-    int res;
+    int res, test_size = 2;
 
     struct queue *queue;
 
-    res = queue_create(&queue, sizeof(size_t), 3);
+    res = queue_create(&queue, sizeof(size_t), test_size);
 
     printf("%d\n", queue_is_empty(queue));
 
-    res = queue_push(queue, NULL);
-    res = queue_push(queue, NULL);
+    size_t nums[] = {1, 2, 3, 4};
+
+    res = queue_push(queue, nums);
+    res = queue_push(queue, nums + 1);
 
     printf("%ld %d\n", queue_size(queue), queue_is_full(queue));
 
