@@ -6,20 +6,33 @@
 #include <errno.h>
 #include <error.h>
 
+#include <pthread.h>
+
+#ifdef DEBUG
+#include <stdio.h>
+#endif
+
 //--[  Constants and Defines  ]-----------------------------------------------
 
-// struct queue_memory {
-// };
-
-struct queue {
-    size_t queue_capacity;
-    size_t elem_size;
-
+struct queue_memory {
     char *memory;
     size_t queue_size;
 
     size_t read_pointer;
     size_t write_pointer;
+};
+
+struct queue_synchronization {
+    pthread_mutex_t queue_mutex;
+    pthread_cond_t cond_var;
+};
+
+struct queue {
+    size_t queue_capacity;
+    size_t elem_size;
+
+    struct queue_memory buffer;
+    struct queue_synchronization sync;
 };
 
 #define UNUSED(VAR) ((void)(VAR))
@@ -43,20 +56,25 @@ int queue_create(struct queue **qptr, size_t elem_size, size_t queue_capacity)
     (*qptr)->elem_size = elem_size;
     //(*qptr)->queue_size = 0;
 
-    (*qptr)->memory = calloc(queue_capacity, elem_size);
-    if ((*qptr)->memory == NULL) {
+    (*qptr)->buffer.memory = calloc(queue_capacity, elem_size);
+    if ((*qptr)->buffer.memory == NULL) {
         free(*qptr);
         *qptr = NULL;
         return ALLOC_FAILURE;
     }
+
+    // create synchronization elements
 
     return QUEUE_SUCCESS;
 }
 
 int queue_destroy(struct queue *queue)
 {
-    free(queue->memory);
+    free(queue->buffer.memory);
     free(queue);
+
+    // close synchronization elements
+
     return QUEUE_SUCCESS;
 }
 
@@ -83,17 +101,17 @@ size_t queue_element(const struct queue *queue)
 size_t queue_size(const struct queue *queue)
 {
     // fuck you clang
-    return queue->queue_size;
+    return queue->buffer.queue_size;
 }
 
 bool queue_is_empty(const struct queue *queue)
 {
-    return queue->queue_size == 0;
+    return queue->buffer.queue_size == 0;
 }
 
 bool queue_is_full(const struct queue *queue)
 {
-    return queue->queue_size == queue->queue_capacity;
+    return queue->buffer.queue_size == queue->queue_capacity;
 }
 
 ssize_t queue_forecast(const struct queue *queue)
@@ -115,11 +133,13 @@ int queue_push(struct queue *queue, const void *elem)
     }
 
     // crit -> check if queue isn't full
-    memcpy(queue->memory + (queue->write_pointer * queue->elem_size), elem,
-           queue->elem_size);
+    memcpy(queue->buffer.memory +
+               (queue->buffer.write_pointer * queue->elem_size),
+           elem, queue->elem_size);
 
-    queue->write_pointer = (queue->write_pointer + 1) % queue->queue_capacity;
-    queue->queue_size = (queue->queue_size + 1);
+    queue->buffer.write_pointer =
+        (queue->buffer.write_pointer + 1) % queue->queue_capacity;
+    queue->buffer.queue_size = (queue->buffer.queue_size + 1);
     // crit
 
     return QUEUE_SUCCESS;
@@ -127,14 +147,18 @@ int queue_push(struct queue *queue, const void *elem)
 
 int queue_pop(struct queue *queue, void *elem)
 {
+    printf("%p\n", elem);
     // crit -> check if queue isn't empty
-    if (elem == NULL) {
-        memcpy(elem, queue->memory + (queue->write_pointer * queue->elem_size),
+    if (elem != NULL) {
+        memcpy(elem,
+               queue->buffer.memory +
+                   (queue->buffer.write_pointer * queue->elem_size),
                queue->elem_size);
     }
 
-    queue->read_pointer = (queue->read_pointer + 1) % queue->queue_capacity;
-    queue->queue_size = (queue->queue_size - 1);
+    queue->buffer.read_pointer =
+        (queue->buffer.read_pointer + 1) % queue->queue_capacity;
+    queue->buffer.queue_size = (queue->buffer.queue_size - 1);
     // crit
 
     return QUEUE_SUCCESS;
@@ -147,11 +171,13 @@ int queue_try_push(struct queue *queue, const void *elem)
     }
 
     // crit -> check if queue isn't full and if so, fail
-    memcpy(queue->memory + (queue->write_pointer * queue->elem_size), elem,
-           queue->elem_size);
+    memcpy(queue->buffer.memory +
+               (queue->buffer.write_pointer * queue->elem_size),
+           elem, queue->elem_size);
 
-    queue->write_pointer = (queue->write_pointer + 1) % queue->queue_capacity;
-    queue->queue_size = (queue->queue_size + 1);
+    queue->buffer.write_pointer =
+        (queue->buffer.write_pointer + 1) % queue->queue_capacity;
+    queue->buffer.queue_size = (queue->buffer.queue_size + 1);
     // crit
 
     return QUEUE_SUCCESS;
@@ -159,14 +185,18 @@ int queue_try_push(struct queue *queue, const void *elem)
 
 int queue_try_pop(struct queue *queue, void *elem)
 {
+    printf("%p\n", elem);
     // crit -> check if queue isn't empty
-    if (elem == NULL) {
-        memcpy(elem, queue->memory + (queue->write_pointer * queue->elem_size),
+    if (elem != NULL) {
+        memcpy(elem,
+               queue->buffer.memory +
+                   (queue->buffer.write_pointer * queue->elem_size),
                queue->elem_size);
     }
 
-    queue->read_pointer = (queue->read_pointer + 1) % queue->queue_capacity;
-    queue->queue_size = (queue->queue_size - 1);
+    queue->buffer.read_pointer =
+        (queue->buffer.read_pointer + 1) % queue->queue_capacity;
+    queue->buffer.queue_size = (queue->buffer.queue_size - 1);
     // crit
 
     return QUEUE_SUCCESS;
@@ -194,4 +224,21 @@ size_t queue_strerror(int error_code, char *buffer, size_t maxlen)
     UNUSED(buffer);
     UNUSED(maxlen);
     NOT_IMPLEMENTED();
+
+    // switch error_code: -> that enum
 }
+
+#ifdef DEBUG
+void queue_state_debug(const struct queue *queue)
+{
+    printf("queue memory:\t");
+    for (size_t i = 0; i < queue->queue_capacity * queue->elem_size; i++) {
+        printf(" %d", queue->buffer.memory[i]);
+    }
+    putchar('\n');
+    printf("queue size:\t\t%ld\n", queue->buffer.queue_size);
+    printf("queue read ptr:\t\t%ld\n", queue->buffer.read_pointer);
+    printf("queue write ptr:\t%ld\n", queue->buffer.write_pointer);
+    putchar('\n');
+}
+#endif
