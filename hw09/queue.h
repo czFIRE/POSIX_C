@@ -28,6 +28,10 @@ enum queue_error_codes {
     QUEUE_SUCCESS = 0,
     ALLOC_FAILURE,
     WRONG_QUEUE_ARG,
+    MUTEX_INIT_FAIL,
+    COND_INIT_FAIL,
+    MUTEX_DESTROY_FAIL,
+    COND_DESTROY_FAIL,
 };
 
 //--[  Constructor and Destructor  ]-------------------------------------------

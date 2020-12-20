@@ -59,10 +59,13 @@ int main(void)
     size_t ret_nums[4] = {0};
 
     res = queue_pop(queue, ret_nums);
+
     queue_state_debug(queue);
 
     res = queue_push(queue, nums + 2);
+    puts("pushed");
     res = queue_try_pop(queue, ret_nums + 1);
+    puts("popped");
 
     printf("Got these numbers: ");
     for (size_t i = 0; i < 4; i++) {
@@ -76,6 +79,7 @@ int main(void)
     queue_state_debug(queue);
 
     queue_destroy(queue);
+    puts("Finished!");
 
     UNUSED(res);
 

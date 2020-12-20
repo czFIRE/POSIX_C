@@ -1,11 +1,14 @@
 #include "queue.h"
 
+#define _GNU_SOURCE
+
 #include <stdlib.h>
 #include <string.h>
 
 #include <errno.h>
 #include <error.h>
 
+#include <assert.h>
 #include <pthread.h>
 
 #ifdef DEBUG
@@ -24,7 +27,8 @@ struct queue_memory {
 
 struct queue_synchronization {
     pthread_mutex_t queue_mutex;
-    pthread_cond_t cond_var;
+    pthread_cond_t cond_push;
+    pthread_cond_t cond_pop;
 };
 
 struct queue {
@@ -54,7 +58,6 @@ int queue_create(struct queue **qptr, size_t elem_size, size_t queue_capacity)
 
     (*qptr)->queue_capacity = queue_capacity;
     (*qptr)->elem_size = elem_size;
-    //(*qptr)->queue_size = 0;
 
     (*qptr)->buffer.memory = calloc(queue_capacity, elem_size);
     if ((*qptr)->buffer.memory == NULL) {
@@ -64,6 +67,14 @@ int queue_create(struct queue **qptr, size_t elem_size, size_t queue_capacity)
     }
 
     // create synchronization elements
+    if (pthread_mutex_init(&(*qptr)->sync.queue_mutex, NULL) != 0) {
+        return MUTEX_INIT_FAIL;
+    }
+
+    if (pthread_cond_init(&(*qptr)->sync.cond_push, NULL) != 0 ||
+        pthread_cond_init(&(*qptr)->sync.cond_pop, NULL) != 0) {
+        return COND_INIT_FAIL;
+    }
 
     return QUEUE_SUCCESS;
 }
@@ -74,6 +85,15 @@ int queue_destroy(struct queue *queue)
     free(queue);
 
     // close synchronization elements
+
+    if (pthread_mutex_destroy(&queue->sync.queue_mutex) != 0) {
+        return MUTEX_DESTROY_FAIL;
+    }
+
+    if (pthread_cond_destroy(&queue->sync.cond_push) != 0 ||
+        pthread_cond_destroy(&queue->sync.cond_pop) != 0) {
+        return COND_DESTROY_FAIL;
+    }
 
     return QUEUE_SUCCESS;
 }
@@ -132,7 +152,9 @@ int queue_push(struct queue *queue, const void *elem)
         return WRONG_QUEUE_ARG;
     }
 
-    // crit -> check if queue isn't full
+    // crit
+    assert(pthread_mutex_lock(&queue->sync.queue_mutex) == 0);
+
     memcpy(queue->buffer.memory +
                (queue->buffer.write_pointer * queue->elem_size),
            elem, queue->elem_size);
@@ -140,6 +162,8 @@ int queue_push(struct queue *queue, const void *elem)
     queue->buffer.write_pointer =
         (queue->buffer.write_pointer + 1) % queue->queue_capacity;
     queue->buffer.queue_size = (queue->buffer.queue_size + 1);
+
+    assert(pthread_mutex_unlock(&queue->sync.queue_mutex) == 0);
     // crit
 
     return QUEUE_SUCCESS;
@@ -147,8 +171,10 @@ int queue_push(struct queue *queue, const void *elem)
 
 int queue_pop(struct queue *queue, void *elem)
 {
-    printf("%p\n", elem);
+
     // crit -> check if queue isn't empty
+    assert(pthread_mutex_lock(&queue->sync.queue_mutex) == 0);
+
     if (elem != NULL) {
         memcpy(elem,
                queue->buffer.memory +
@@ -159,6 +185,8 @@ int queue_pop(struct queue *queue, void *elem)
     queue->buffer.read_pointer =
         (queue->buffer.read_pointer + 1) % queue->queue_capacity;
     queue->buffer.queue_size = (queue->buffer.queue_size - 1);
+
+    assert(pthread_mutex_unlock(&queue->sync.queue_mutex) == 0);
     // crit
 
     return QUEUE_SUCCESS;
@@ -170,7 +198,9 @@ int queue_try_push(struct queue *queue, const void *elem)
         return WRONG_QUEUE_ARG;
     }
 
-    // crit -> check if queue isn't full and if so, fail
+    // crit -> trylock
+    assert(pthread_mutex_lock(&queue->sync.queue_mutex) == 0);
+
     memcpy(queue->buffer.memory +
                (queue->buffer.write_pointer * queue->elem_size),
            elem, queue->elem_size);
@@ -178,6 +208,8 @@ int queue_try_push(struct queue *queue, const void *elem)
     queue->buffer.write_pointer =
         (queue->buffer.write_pointer + 1) % queue->queue_capacity;
     queue->buffer.queue_size = (queue->buffer.queue_size + 1);
+
+    assert(pthread_mutex_unlock(&queue->sync.queue_mutex) == 0);
     // crit
 
     return QUEUE_SUCCESS;
@@ -185,8 +217,9 @@ int queue_try_push(struct queue *queue, const void *elem)
 
 int queue_try_pop(struct queue *queue, void *elem)
 {
-    printf("%p\n", elem);
     // crit -> check if queue isn't empty
+    assert(pthread_mutex_lock(&queue->sync.queue_mutex) == 0);
+
     if (elem != NULL) {
         memcpy(elem,
                queue->buffer.memory +
@@ -197,6 +230,8 @@ int queue_try_pop(struct queue *queue, void *elem)
     queue->buffer.read_pointer =
         (queue->buffer.read_pointer + 1) % queue->queue_capacity;
     queue->buffer.queue_size = (queue->buffer.queue_size - 1);
+
+    assert(pthread_mutex_unlock(&queue->sync.queue_mutex) == 0);
     // crit
 
     return QUEUE_SUCCESS;
