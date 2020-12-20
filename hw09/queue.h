@@ -32,6 +32,9 @@ enum queue_error_codes {
     COND_INIT_FAIL,
     MUTEX_DESTROY_FAIL,
     COND_DESTROY_FAIL,
+    CANT_LOCK,
+    QUEUE_FULL,
+    QUEUE_EMPTY,
 };
 
 //--[  Constructor and Destructor  ]-------------------------------------------
