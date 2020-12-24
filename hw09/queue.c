@@ -29,11 +29,13 @@ struct queue_synchronization {
     pthread_mutex_t queue_mutex;
     pthread_cond_t cond_push;
     pthread_cond_t cond_pop;
+    bool aborted;
 };
 
 struct queue {
     size_t queue_capacity;
     size_t elem_size;
+    pthread_key_t lib_errno;
 
     struct queue_memory buffer;
     struct queue_synchronization sync;
@@ -51,9 +53,16 @@ struct queue {
 
 int queue_create(struct queue **qptr, size_t elem_size, size_t queue_capacity)
 {
+    if (qptr == NULL) {
+        return WRONG_QUEUE_ARG;
+    }
+
+    int retval = QUEUE_SUCCESS;
+
     *qptr = calloc(1, sizeof(struct queue));
     if (*qptr == NULL) {
-        return ALLOC_FAILURE;
+        retval = ALLOC_FAILURE;
+        goto queue_alloc;
     }
 
     (*qptr)->queue_capacity = queue_capacity;
@@ -61,29 +70,51 @@ int queue_create(struct queue **qptr, size_t elem_size, size_t queue_capacity)
 
     (*qptr)->buffer.memory = calloc(queue_capacity, elem_size);
     if ((*qptr)->buffer.memory == NULL) {
-        free(*qptr);
-        *qptr = NULL;
-        return ALLOC_FAILURE;
+        retval = ALLOC_FAILURE;
+        goto buffer_alloc;
+    }
+
+    if (pthread_key_create(&(*qptr)->lib_errno, NULL) != 0) {
+        retval = KEY_ERROR;
+        goto key_init;
     }
 
     // create synchronization elements
     if (pthread_mutex_init(&(*qptr)->sync.queue_mutex, NULL) != 0) {
-        return MUTEX_INIT_FAIL;
+        retval = MUTEX_INIT_FAIL;
+        goto mutex_init;
     }
 
-    if (pthread_cond_init(&(*qptr)->sync.cond_push, NULL) != 0 ||
-        pthread_cond_init(&(*qptr)->sync.cond_pop, NULL) != 0) {
-        return COND_INIT_FAIL;
+    if (pthread_cond_init(&(*qptr)->sync.cond_pop, NULL) != 0) {
+        retval = COND_INIT_FAIL;
+        goto cond_init_pop;
     }
 
-    return QUEUE_SUCCESS;
+    if (pthread_cond_init(&(*qptr)->sync.cond_push, NULL) != 0) {
+        retval = COND_INIT_FAIL;
+        goto cond_init_push;
+    }
+
+    goto finish;
+
+cond_init_push:
+    pthread_cond_destroy(&(*qptr)->sync.cond_pop);
+cond_init_pop:
+    pthread_mutex_destroy(&(*qptr)->sync.queue_mutex);
+mutex_init:
+    pthread_key_delete((*qptr)->lib_errno);
+key_init:
+    free((*qptr)->buffer.memory);
+buffer_alloc:
+    free(*qptr);
+queue_alloc:
+    *qptr = NULL;
+finish:
+    return retval;
 }
 
 int queue_destroy(struct queue *queue)
 {
-    free(queue->buffer.memory);
-    free(queue);
-
     // close synchronization elements
 
     if (pthread_mutex_destroy(&queue->sync.queue_mutex) != 0) {
@@ -94,6 +125,9 @@ int queue_destroy(struct queue *queue)
         pthread_cond_destroy(&queue->sync.cond_pop) != 0) {
         return COND_DESTROY_FAIL;
     }
+
+    free(queue->buffer.memory);
+    free(queue);
 
     return QUEUE_SUCCESS;
 }
@@ -156,6 +190,11 @@ int queue_push(struct queue *queue, const void *elem)
     assert(pthread_mutex_lock(&queue->sync.queue_mutex) == 0);
 
     while (queue_is_full(queue)) {
+        if (queue->sync.aborted) {
+            assert(pthread_mutex_unlock(&queue->sync.queue_mutex) == 0);
+            return QUEUE_ABORT;
+        }
+
         pthread_cond_wait(&queue->sync.cond_push, &queue->sync.queue_mutex);
     }
 
@@ -182,6 +221,11 @@ int queue_pop(struct queue *queue, void *elem)
     assert(pthread_mutex_lock(&queue->sync.queue_mutex) == 0);
 
     while (queue_is_empty(queue)) {
+        if (queue->sync.aborted) {
+            assert(pthread_mutex_unlock(&queue->sync.queue_mutex) == 0);
+            return QUEUE_ABORT;
+        }
+
         pthread_cond_wait(&queue->sync.cond_pop, &queue->sync.queue_mutex);
     }
 
@@ -271,8 +315,13 @@ int queue_try_pop(struct queue *queue, void *elem)
 
 int queue_abort(struct queue *queue)
 {
-    UNUSED(queue);
-    NOT_IMPLEMENTED();
+    // maybe some shared attribute to end with error
+
+    // this should probably be in mutex so I know, that this has priority
+    queue->sync.aborted = true;
+    pthread_cond_broadcast(&queue->sync.cond_pop);
+    pthread_cond_broadcast(&queue->sync.cond_push);
+    return QUEUE_SUCCESS;
 }
 
 int queue_errno(const struct queue *queue)

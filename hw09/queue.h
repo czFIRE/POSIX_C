@@ -35,6 +35,8 @@ enum queue_error_codes {
     CANT_LOCK,
     QUEUE_FULL,
     QUEUE_EMPTY,
+    QUEUE_ABORT,
+    KEY_ERROR,
 };
 
 //--[  Constructor and Destructor  ]-------------------------------------------
