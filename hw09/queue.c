@@ -270,7 +270,7 @@ int queue_try_push(struct queue *queue, const void *elem)
 
     if (queue_is_full(queue)) {
         assert(pthread_mutex_unlock(&queue->sync.queue_mutex) == 0);
-        return return_error_state(QUEUE_EMPTY, queue->lib_errno);
+        return return_error_state(QUEUE_FULL, queue->lib_errno);
     }
 
     memcpy(queue->buffer.memory +
@@ -336,22 +336,43 @@ int queue_abort(struct queue *queue)
 int queue_errno(const struct queue *queue)
 {
     // the size_t is here just to appease pedantic
-    return (size_t) pthread_getspecific(queue->lib_errno);
+    return (size_t)pthread_getspecific(queue->lib_errno);
 }
 
 size_t queue_strerror(int error_code, char *buffer, size_t maxlen)
 {
-    UNUSED(error_code);
-    UNUSED(buffer);
-    UNUSED(maxlen);
-    NOT_IMPLEMENTED();
+    char *message;
 
-    // switch error_code: -> that enum
+    switch (error_code) {
+    case QUEUE_SUCCESS:
+        message = "No error happened.";
+        break;
+
+    case CANT_LOCK:
+        message = "Can't aquire lock.";
+        break;
+
+    case QUEUE_FULL:
+        message = "Element can't be pushed to queue because queue is full.";
+        break;
+
+    default:
+        message =
+            "Error message not implemented yet, blame the lazy programmer!";
+        break;
+    }
+
+    size_t message_len = strlen(message) + 1;
+
+    if (message_len <= maxlen && buffer != NULL) {
+        strcpy(buffer, message);
+    }
+    return message_len;
 }
 
 int return_error_state(int error_state, pthread_key_t key)
 {
-    pthread_setspecific(key, (void *) (size_t) error_state);
+    pthread_setspecific(key, (void *)(size_t)error_state);
     return error_state;
 }
 
