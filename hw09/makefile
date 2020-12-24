@@ -1,6 +1,6 @@
-SRCS = tester.c queue.c
+SRCS = easy_tester.c queue.c
 OBJS = $(SRCS:.c=.o)
-TARGET = tester
+TARGET = easy_tester
 
 override CFLAGS += -std=c11 -pedantic -Wall -Wextra
 
@@ -18,7 +18,8 @@ $(TARGET): override CFLAGS += -pthread
 $(TARGET): override LDFLAGS += -pthread
 $(TARGET): $(OBJS)
 
-tester.o: queue.h
+#tester.o: queue.h
+easy_tester.o: queue.h
 queue.o: queue.h
 
 clean:

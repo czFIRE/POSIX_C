@@ -38,6 +38,8 @@ int main(void)
     queue_state_debug(queue);
 
     res = queue_push(queue, nums + 2);
+    res = queue_try_push(queue, nums + 2);
+    printf("error val: %d\n", queue_errno(queue));
     puts("pushed");
     res = queue_try_pop(queue, ret_nums + 1);
     puts("popped");

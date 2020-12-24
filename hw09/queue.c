@@ -49,6 +49,8 @@ struct queue {
         __builtin_unreachable();                                               \
     } while (0)
 
+int return_error_state(int error_state, pthread_key_t key);
+
 //--[  Constructor and Destructor  ]-------------------------------------------
 
 int queue_create(struct queue **qptr, size_t elem_size, size_t queue_capacity)
@@ -74,7 +76,8 @@ int queue_create(struct queue **qptr, size_t elem_size, size_t queue_capacity)
         goto buffer_alloc;
     }
 
-    if (pthread_key_create(&(*qptr)->lib_errno, NULL) != 0) {
+    if (pthread_key_create(&(*qptr)->lib_errno, NULL) != 0 ||
+        pthread_setspecific((*qptr)->lib_errno, 0)) {
         retval = KEY_ERROR;
         goto key_init;
     }
@@ -115,8 +118,9 @@ finish:
 
 int queue_destroy(struct queue *queue)
 {
-    // close synchronization elements
+    queue_abort(queue);
 
+    // close synchronization elements
     if (pthread_mutex_destroy(&queue->sync.queue_mutex) != 0) {
         return MUTEX_DESTROY_FAIL;
     }
@@ -126,6 +130,11 @@ int queue_destroy(struct queue *queue)
         return COND_DESTROY_FAIL;
     }
 
+    if (pthread_key_delete(queue->lib_errno) != 0) {
+        return KEY_ERROR;
+    }
+
+    // free buffer
     free(queue->buffer.memory);
     free(queue);
 
@@ -183,7 +192,7 @@ ssize_t queue_forecast(const struct queue *queue)
 int queue_push(struct queue *queue, const void *elem)
 {
     if (elem == NULL) {
-        return WRONG_QUEUE_ARG;
+        return return_error_state(WRONG_QUEUE_ARG, queue->lib_errno);
     }
 
     // crit
@@ -192,7 +201,7 @@ int queue_push(struct queue *queue, const void *elem)
     while (queue_is_full(queue)) {
         if (queue->sync.aborted) {
             assert(pthread_mutex_unlock(&queue->sync.queue_mutex) == 0);
-            return QUEUE_ABORT;
+            return return_error_state(QUEUE_ABORT, queue->lib_errno);
         }
 
         pthread_cond_wait(&queue->sync.cond_push, &queue->sync.queue_mutex);
@@ -223,7 +232,7 @@ int queue_pop(struct queue *queue, void *elem)
     while (queue_is_empty(queue)) {
         if (queue->sync.aborted) {
             assert(pthread_mutex_unlock(&queue->sync.queue_mutex) == 0);
-            return QUEUE_ABORT;
+            return return_error_state(QUEUE_ABORT, queue->lib_errno);
         }
 
         pthread_cond_wait(&queue->sync.cond_pop, &queue->sync.queue_mutex);
@@ -251,17 +260,17 @@ int queue_pop(struct queue *queue, void *elem)
 int queue_try_push(struct queue *queue, const void *elem)
 {
     if (elem == NULL) {
-        return WRONG_QUEUE_ARG;
+        return return_error_state(WRONG_QUEUE_ARG, queue->lib_errno);
     }
 
     // crit -> trylock
     if (pthread_mutex_trylock(&queue->sync.queue_mutex) != 0) {
-        return CANT_LOCK;
+        return return_error_state(CANT_LOCK, queue->lib_errno);
     }
 
     if (queue_is_full(queue)) {
         assert(pthread_mutex_unlock(&queue->sync.queue_mutex) == 0);
-        return QUEUE_EMPTY;
+        return return_error_state(QUEUE_EMPTY, queue->lib_errno);
     }
 
     memcpy(queue->buffer.memory +
@@ -284,12 +293,12 @@ int queue_try_pop(struct queue *queue, void *elem)
 {
     // crit -> check if queue isn't empty
     if (pthread_mutex_trylock(&queue->sync.queue_mutex) != 0) {
-        return CANT_LOCK;
+        return return_error_state(CANT_LOCK, queue->lib_errno);
     }
 
     if (queue_is_empty(queue)) {
         assert(pthread_mutex_unlock(&queue->sync.queue_mutex) == 0);
-        return QUEUE_EMPTY;
+        return return_error_state(QUEUE_EMPTY, queue->lib_errno);
     }
 
     if (elem != NULL) {
@@ -326,10 +335,8 @@ int queue_abort(struct queue *queue)
 
 int queue_errno(const struct queue *queue)
 {
-    // uumh, what? :D
-    // maybe add "last error code" to data structure => second condvar?
-    UNUSED(queue);
-    return errno;
+    // the size_t is here just to appease pedantic
+    return (size_t) pthread_getspecific(queue->lib_errno);
 }
 
 size_t queue_strerror(int error_code, char *buffer, size_t maxlen)
@@ -340,6 +347,12 @@ size_t queue_strerror(int error_code, char *buffer, size_t maxlen)
     NOT_IMPLEMENTED();
 
     // switch error_code: -> that enum
+}
+
+int return_error_state(int error_state, pthread_key_t key)
+{
+    pthread_setspecific(key, (void *) (size_t) error_state);
+    return error_state;
 }
 
 #ifdef DEBUG
