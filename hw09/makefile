@@ -8,6 +8,7 @@ override LDFLAGS += -pthread
 
 ifneq ($(strip $(DEBUG)),)
 override CFLAGS += -g -ggdb3 -Og
+override CPPFLAGS += -DDEBUG
 endif
 
 ifneq ($(strip $(OPTIMIZE)),)

@@ -22,12 +22,16 @@ int main(void)
 
     size_t nums[] = {1024, 1025, 1026, 1027};
 
+    #ifdef DEBUG
     queue_state_debug(queue);
+    #endif
 
     res = queue_push(queue, nums);
     res = queue_try_push(queue, nums + 1);
 
+    #ifdef DEBUG
     queue_state_debug(queue);
+    #endif
 
     printf("%ld %d\n", queue_size(queue), queue_is_full(queue));
 
@@ -35,7 +39,9 @@ int main(void)
 
     res = queue_pop(queue, ret_nums);
 
+    #ifdef DEBUG
     queue_state_debug(queue);
+    #endif
 
     res = queue_push(queue, nums + 2);
     res = queue_try_push(queue, nums + 2);
@@ -58,7 +64,9 @@ int main(void)
     // res = queue_push(queue, nums + 2);
     res = queue_try_push(queue, nums + 3);
 
+    #ifdef DEBUG
     queue_state_debug(queue);
+    #endif
 
     queue_destroy(queue);
     puts("Finished!");

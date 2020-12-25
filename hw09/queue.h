@@ -228,7 +228,6 @@ int queue_errno(const struct queue *queue);
  */
 size_t queue_strerror(int error_code, char *buffer, size_t maxlen);
 
-#define DEBUG
 #ifdef DEBUG
 /**
  * This is a debugging function used to read the inner state of the structure 

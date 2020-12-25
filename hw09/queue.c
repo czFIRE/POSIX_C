@@ -10,10 +10,7 @@
 
 #include <assert.h>
 #include <pthread.h>
-
-#ifdef DEBUG
 #include <stdio.h>
-#endif
 
 //--[  Constants and Defines  ]-----------------------------------------------
 
