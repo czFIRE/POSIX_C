@@ -30,6 +30,9 @@ struct queue_synchronization {
     pthread_cond_t cond_push;
     pthread_cond_t cond_pop;
     bool aborted;
+
+    size_t waiting_for_pop;
+    size_t waiting_for_push;
 };
 
 struct queue {
@@ -179,12 +182,9 @@ bool queue_is_full(const struct queue *queue)
 
 ssize_t queue_forecast(const struct queue *queue)
 {
-    // This is a bonus extension.
-    // If you do not wish to implement it, you may leave the following
-    // macros here.
-
-    UNUSED(queue);
-    NOT_IMPLEMENTED();
+    // maybe add mutex here?
+    return queue->buffer.queue_size - queue->sync.waiting_for_pop +
+           queue->sync.waiting_for_push;
 }
 
 //--[  Queue manipulation  ]---------------------------------------------------
@@ -203,8 +203,9 @@ int queue_push(struct queue *queue, const void *elem)
             assert(pthread_mutex_unlock(&queue->sync.queue_mutex) == 0);
             return return_error_state(QUEUE_ABORT, queue->lib_errno);
         }
-
+        queue->sync.waiting_for_push++;
         pthread_cond_wait(&queue->sync.cond_push, &queue->sync.queue_mutex);
+        queue->sync.waiting_for_push--;
     }
 
     memcpy(queue->buffer.memory +
@@ -235,7 +236,9 @@ int queue_pop(struct queue *queue, void *elem)
             return return_error_state(QUEUE_ABORT, queue->lib_errno);
         }
 
+        queue->sync.waiting_for_pop++;
         pthread_cond_wait(&queue->sync.cond_pop, &queue->sync.queue_mutex);
+        queue->sync.waiting_for_pop--;
     }
 
     if (elem != NULL) {
@@ -324,12 +327,15 @@ int queue_try_pop(struct queue *queue, void *elem)
 
 int queue_abort(struct queue *queue)
 {
-    // maybe some shared attribute to end with error
-
     // this should probably be in mutex so I know, that this has priority
+    assert(pthread_mutex_lock(&queue->sync.queue_mutex) == 0);
+
     queue->sync.aborted = true;
     pthread_cond_broadcast(&queue->sync.cond_pop);
     pthread_cond_broadcast(&queue->sync.cond_push);
+
+    assert(pthread_mutex_unlock(&queue->sync.queue_mutex) == 0);
+
     return QUEUE_SUCCESS;
 }
 
@@ -362,12 +368,14 @@ size_t queue_strerror(int error_code, char *buffer, size_t maxlen)
         break;
     }
 
-    size_t message_len = strlen(message) + 1;
+    /*size_t message_len = strlen(message) + 1;
 
     if (message_len <= maxlen && buffer != NULL) {
         strcpy(buffer, message);
     }
-    return message_len;
+    return message_len;*/
+
+    return snprintf(buffer, maxlen, "%s", message);
 }
 
 int return_error_state(int error_state, pthread_key_t key)
