@@ -1,4 +1,4 @@
-TARGET = abort
+TARGET = roftpd
 SOURCE = $(TARGET:=.c)
 OBJECT = $(TARGET:=.o)
 CFLAGS = -std=c99 -pedantic -Wall -Wextra
