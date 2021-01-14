@@ -43,7 +43,7 @@ int big_ugly_blob(char *server_name, bool tcp_mode)
     struct addrinfo hints = {0};
     hints.ai_family = AF_UNSPEC;
     hints.ai_flags = AI_PASSIVE;
-    hints.ai_socktype = SOCK_DGRAM;
+    hints.ai_socktype = if tcp_mode ? SOCK_STREAM : SOCK_DGRAM;
 
     struct addrinfo *result, *rp;
 
@@ -91,14 +91,14 @@ int big_ugly_blob(char *server_name, bool tcp_mode)
 
         alarm(5);
 
-        if (recvfrom(sfd, &curr_time, 0, 0, rp->ai_addr, &rp->ai_addrlen) ==
-            -1) {
-            fprintf(stderr, "Error receiving null packet\n");
-            return 1;
-        }
     } else {
         rp->ai_addr = NULL;
         rp->ai_addrlen = 0;
+    }
+
+    if (recvfrom(sfd, &curr_time, 0, 0, rp->ai_addr, &rp->ai_addrlen) == -1) {
+        fprintf(stderr, "Error receiving null packet\n");
+        return 1;
     }
 
     // send
@@ -118,6 +118,8 @@ int big_ugly_blob(char *server_name, bool tcp_mode)
         fprintf(stderr, "Error receiving time packet\n");
         return 1;
     }
+
+    // ještě ntohl a - EPOCH_TIME
 
     printf("Time: %s", ctime(&recv_time));
     close(sfd);

@@ -11,6 +11,10 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 
+// resolv_conf => tam se mi ukládají názvy a tak, usefull k DNS
+
+// ano, může se stát, že DNS je správně a nemusí nám dojít to jméno
+
 int main(int argc, char *argv[])
 {
     if (argc != 2) {
@@ -22,8 +26,8 @@ int main(int argc, char *argv[])
 
     struct addrinfo hints = {0};
     hints.ai_family = AF_UNSPEC;
-    hints.ai_flags = AI_ALL | AI_CANONNAME;
-    hints.ai_socktype = SOCK_DGRAM;
+    hints.ai_flags = AI_ALL | AI_CANONNAME; //AI_ALL zbytečné
+    hints.ai_socktype = SOCK_DGRAM; //to je jeden z možných, se kterými se mohu připojit
 
     struct addrinfo *result, *rp;
 
@@ -39,8 +43,10 @@ int main(int argc, char *argv[])
     for (rp = result; rp != NULL; rp = rp->ai_next) {
         char host[NI_MAXHOST], service[NI_MAXSERV];
 
+        // vlastně jde o typy soketů, které se tam mohou objevit -> DGRAM, STREAM, RAW
+
         ret_code = getnameinfo(rp->ai_addr, rp->ai_addrlen, host, NI_MAXHOST,
-                               service, NI_MAXSERV, NI_NUMERICHOST);
+                               service, NI_MAXSERV, NI_NUMERICHOST | NI_NUMERICSERV);
 
         if (ret_code != 0) {
             fprintf(stderr, "getnameinfo: %s\n", gai_strerror(ret_code));

@@ -46,6 +46,7 @@ int main(int argc, char *argv[])
     struct pollfd list_addr[MAX_DESC];
     for (size_t i = 0; i < MAX_DESC; i++) {
         list_addr[i].fd = -1;
+        list_addr[i].events = POLLIN;
     }
 
     size_t free_addr = 4;
