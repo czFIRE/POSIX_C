@@ -9,6 +9,7 @@
 
 #include <error.h>
 #include <fcntl.h>
+#include <sys/file.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -40,10 +41,30 @@ int main(int argc, char *argv[])
         goto main_close_fd;
     }
 
+    /*struct flock write_lock = {0};
+    write_lock.l_type = F_WRLCK;
+    write_lock.l_whence = SEEK_SET;
+    write_lock.l_start = 0;
+    write_lock.l_len = BUFFER_LENGTH;*/
+    // fcntl(fd, F_SETLK, &write_lock);
+
     if (strcmp(argv[1], "--stop") == 0) {
         // critical
+
+        if (flock(fd, LOCK_EX)) {
+            error(0, errno, "flock lock");
+            goto main_munmap;
+        }
         *mem = 1;
+        if (flock(fd, LOCK_UN)) {
+            error(0, errno, "flock unlock");
+            goto main_munmap;
+        }
         // end critical
+
+        if (remove(FILE_NAME)) {
+            error(0, errno, "remove file");
+        }
         goto main_munmap;
     }
 
@@ -61,12 +82,20 @@ int main(int argc, char *argv[])
                0);
 
         // critical
+        if (flock(fd, LOCK_SH)) {
+            error(0, errno, "flock lock");
+            goto main_munmap;
+        }
         printf("%s %s\x1b[0K\r", time_buf, mem + 1);
         fflush(stdout);
 
         if (*mem != 0) {
             puts("finished");
             break;
+        }
+        if (flock(fd, LOCK_UN)) {
+            error(0, errno, "flock unlock");
+            goto main_munmap;
         }
         // end critical
 
